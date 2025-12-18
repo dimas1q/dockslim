@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dockslim/dockslim/backend/internal/config"
+	"github.com/dimas1q/dockslim/backend/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 

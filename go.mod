@@ -1,4 +1,4 @@
-module github.com/dockslim/dockslim
+module github.com/dimas1q/dockslim
 
 go 1.22.0
 

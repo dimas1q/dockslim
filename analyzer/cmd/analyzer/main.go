@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/dockslim/dockslim/analyzer/internal/config"
+	"github.com/dimas1q/dockslim/analyzer/internal/config"
 )
 
 func main() {
