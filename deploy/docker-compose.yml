@@ -22,11 +22,11 @@ services:
   backend:
     image: golang:1.22
     working_dir: /app
-    command: ["sh", "-c", "go run ./backend/cmd/migrate -path ./backend/migrations && go run ./backend/cmd/api"]
+    command: ["go", "run", "./backend/cmd/api"]
     volumes:
       - ..:/app
     env_file:
-      - ../backend/.env.example
+      - ../backend/.env
     depends_on:
       - postgres
       - redis
@@ -40,7 +40,7 @@ services:
     volumes:
       - ..:/app
     env_file:
-      - ../analyzer/.env.example
+      - ../analyzer/.env
     depends_on:
       - postgres
       - redis

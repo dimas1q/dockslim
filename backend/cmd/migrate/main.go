@@ -2,25 +2,36 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/dimas1q/dockslim/backend/internal/config"
 	"github.com/dimas1q/dockslim/backend/internal/migrate"
 )
 
 func main() {
-	migrationsPath := flag.String("path", "./backend/migrations", "path to migrations directory")
+	migrationsPath := flag.String("path", "", "path to migrations directory")
 	flag.Parse()
 
 	cfg := config.Load()
+	path := *migrationsPath
+	if path == "" {
+		path = cfg.MigrationsPath
+	}
+
+	resolvedPath, err := resolveMigrationsPath(path)
+	if err != nil {
+		log.Fatalf("failed to resolve migrations path: %v", err)
+	}
 
 	if cfg.PostgresDSN == "" {
 		log.Println("POSTGRES_DSN is required")
 		os.Exit(1)
 	}
 
-	runner, err := migrate.NewRunner(cfg.PostgresDSN, *migrationsPath)
+	runner, err := migrate.NewRunner(cfg.PostgresDSN, resolvedPath)
 	if err != nil {
 		log.Fatalf("failed to create migration runner: %v", err)
 	}
@@ -31,4 +42,33 @@ func main() {
 	}
 
 	log.Println("migrations applied successfully")
+}
+
+func resolveMigrationsPath(preferred string) (string, error) {
+	paths := []string{preferred}
+	if preferred != "backend/migrations" {
+		paths = append(paths, "backend/migrations")
+	}
+	paths = append(paths, "migrations")
+
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if filepath.IsAbs(p) {
+			if _, err := os.Stat(p); err == nil {
+				return p, nil
+			}
+			continue
+		}
+		if _, err := os.Stat(p); err == nil {
+			abs, err := filepath.Abs(p)
+			if err != nil {
+				return p, nil
+			}
+			return abs, nil
+		}
+	}
+
+	return "", fmt.Errorf("migrations path not found")
 }

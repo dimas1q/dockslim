@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -44,6 +45,29 @@ func (r *Runner) Up() error {
 		return err
 	}
 	return nil
+}
+
+// UpWithLock acquires a PostgreSQL advisory lock to prevent concurrent migration runs.
+func (r *Runner) UpWithLock(ctx context.Context, lockName string) error {
+	if lockName == "" {
+		lockName = "dockslim_migrations"
+	}
+
+	lockSQL := "SELECT pg_advisory_lock(hashtext($1))"
+	unlockSQL := "SELECT pg_advisory_unlock(hashtext($1))"
+
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("opening migration lock connection: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, lockSQL, lockName); err != nil {
+		return fmt.Errorf("acquiring migration lock: %w", err)
+	}
+	defer conn.ExecContext(context.Background(), unlockSQL, lockName)
+
+	return r.Up()
 }
 
 // Close closes the underlying database connection.

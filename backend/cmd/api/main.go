@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/config"
 	"github.com/dimas1q/dockslim/backend/internal/db"
 	"github.com/dimas1q/dockslim/backend/internal/httpapi"
+	"github.com/dimas1q/dockslim/backend/internal/migrate"
 )
 
 func main() {
@@ -21,6 +25,26 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 	defer database.Close()
+
+	if cfg.AutoMigrate {
+		migrationsPath, err := resolveMigrationsPath(cfg.MigrationsPath)
+		if err != nil {
+			log.Fatalf("failed to resolve migrations path: %v", err)
+		}
+
+		runner, err := migrate.NewRunner(cfg.PostgresDSN, migrationsPath)
+		if err != nil {
+			log.Fatalf("failed to create migration runner: %v", err)
+		}
+		defer runner.Close()
+
+		migrationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+
+		if err := runner.UpWithLock(migrationCtx, "dockslim_migrations"); err != nil {
+			log.Fatalf("failed to apply migrations: %v", err)
+		}
+	}
 
 	repo := auth.NewRepository(database)
 	tokenManager, err := auth.NewTokenManager(ctx, repo, auth.DefaultAccessTokenTTL)
@@ -41,4 +65,33 @@ func main() {
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
+}
+
+func resolveMigrationsPath(preferred string) (string, error) {
+	paths := []string{preferred}
+	if preferred != "backend/migrations" {
+		paths = append(paths, "backend/migrations")
+	}
+	paths = append(paths, "migrations")
+
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if filepath.IsAbs(p) {
+			if _, err := os.Stat(p); err == nil {
+				return p, nil
+			}
+			continue
+		}
+		if _, err := os.Stat(p); err == nil {
+			abs, err := filepath.Abs(p)
+			if err != nil {
+				return p, nil
+			}
+			return abs, nil
+		}
+	}
+
+	return "", fmt.Errorf("migrations path not found")
 }

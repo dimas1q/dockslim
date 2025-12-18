@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/jackc/pgconn"
 )
 
 var (
@@ -35,6 +37,10 @@ func (r *Repository) CreateUser(ctx context.Context, email, passwordHash string)
 		&user.UpdatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return User{}, ErrEmailAlreadyExists
+		}
 		return User{}, err
 	}
 

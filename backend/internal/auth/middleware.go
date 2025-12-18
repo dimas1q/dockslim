@@ -19,25 +19,25 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenString, err := extractBearerToken(r.Header.Get("Authorization"))
 		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
 		claims, err := m.tokens.ValidateToken(r.Context(), tokenString)
 		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
 		userID := claims.Subject
 		if userID == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
 		user, err := m.users.GetUserByID(r.Context(), userID)
 		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 
@@ -61,4 +61,10 @@ func extractBearerToken(header string) (string, error) {
 	}
 
 	return parts[1], nil
+}
+
+func respondJSONError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(`{"error":"` + message + `"}`))
 }

@@ -34,14 +34,14 @@ Environment variables:
 
 ### Backend API
 
+Migrations run automatically on startup when `AUTO_MIGRATE` is true (default). To start the API locally:
+
 ```bash
 cd backend
 POSTGRES_DSN="postgres://dockslim:dockslim@localhost:5432/dockslim?sslmode=disable" \
 BACKEND_HTTP_PORT=8080 \
-go run ./cmd/migrate -path ./backend/migrations
-
-POSTGRES_DSN="postgres://dockslim:dockslim@localhost:5432/dockslim?sslmode=disable" \
-BACKEND_HTTP_PORT=8080 \
+AUTO_MIGRATE=true \
+MIGRATIONS_PATH=migrations \
 go run ./cmd/api
 ```
 
@@ -89,18 +89,11 @@ Then open http://localhost:5173 to view the DockSlim placeholder page.
 
 ## Docker Compose Dev Stack
 
-You can run the full stack (Postgres, Redis, backend, analyzer, frontend) with Docker Compose:
+You can run the full stack (Postgres, Redis, backend, analyzer, frontend) with Docker Compose. Migrations are applied automatically on backend startup using a PostgreSQL advisory lock, so no manual commands are required:
 
 ```bash
 cd deploy
 docker-compose up
-```
-
-The backend container runs database migrations before starting. You can also apply migrations manually from the Compose stack:
-
-```bash
-cd deploy
-docker-compose run --rm backend go run ./backend/cmd/migrate -path ./backend/migrations
 ```
 
 Services are available at:
