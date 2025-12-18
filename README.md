@@ -27,7 +27,7 @@ cp analyzer/.env.example analyzer/.env
 
 Environment variables:
 
-- Backend: `BACKEND_HTTP_PORT`, `BACKEND_POSTGRES_DSN`, `BACKEND_REDIS_ADDR`
+- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`
 - Analyzer: `ANALYZER_POSTGRES_DSN`, `ANALYZER_REDIS_ADDR`
 
 ## Running Locally
@@ -36,13 +36,36 @@ Environment variables:
 
 ```bash
 cd backend
-BACKEND_HTTP_PORT=8080 go run ./cmd/api
+POSTGRES_DSN="postgres://dockslim:dockslim@localhost:5432/dockslim?sslmode=disable" \
+BACKEND_HTTP_PORT=8080 \
+go run ./cmd/migrate -path ./backend/migrations
+
+POSTGRES_DSN="postgres://dockslim:dockslim@localhost:5432/dockslim?sslmode=disable" \
+BACKEND_HTTP_PORT=8080 \
+go run ./cmd/api
 ```
 
 Health check:
 
 ```bash
 curl http://localhost:8080/health
+```
+
+Authentication flows:
+
+```bash
+# Register
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
+
+# Login and capture the access token
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}' | jq -r '.access_token')
+
+# Fetch the current user
+curl -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:8080/api/v1/me
 ```
 
 ### Analyzer Worker
@@ -73,6 +96,13 @@ cd deploy
 docker-compose up
 ```
 
+The backend container runs database migrations before starting. You can also apply migrations manually from the Compose stack:
+
+```bash
+cd deploy
+docker-compose run --rm backend go run ./backend/cmd/migrate -path ./backend/migrations
+```
+
 Services are available at:
 
 - Backend API: http://localhost:8080
@@ -81,3 +111,11 @@ Services are available at:
 - Redis: localhost:6379
 
 Use `curl http://localhost:8080/health` to verify the backend is running.
+
+### Tests
+
+Run backend tests from the repository root:
+
+```bash
+go test ./...
+```

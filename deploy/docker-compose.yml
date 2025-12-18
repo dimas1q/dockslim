@@ -22,7 +22,7 @@ services:
   backend:
     image: golang:1.22
     working_dir: /app
-    command: ["go", "run", "./backend/cmd/api"]
+    command: ["sh", "-c", "go run ./backend/cmd/migrate -path ./backend/migrations && go run ./backend/cmd/api"]
     volumes:
       - ..:/app
     env_file:

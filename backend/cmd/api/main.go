@@ -1,30 +1,44 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
+	"fmt"
 	"log"
 	"net/http"
 
+	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/config"
-	"github.com/go-chi/chi/v5"
+	"github.com/dimas1q/dockslim/backend/internal/db"
+	"github.com/dimas1q/dockslim/backend/internal/httpapi"
 )
 
 func main() {
 	cfg := config.Load()
+	ctx := context.Background()
 
-	router := chi.NewRouter()
-	router.Get("/health", healthHandler)
-
-	log.Printf("Starting backend API on %s", cfg.Addr())
-	if err := http.ListenAndServe(cfg.Addr(), router); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+	database, err := db.Connect(ctx, cfg.PostgresDSN)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
 	}
-}
+	defer database.Close()
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	resp := map[string]string{"status": "ok"}
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "failed to write response", http.StatusInternalServerError)
+	repo := auth.NewRepository(database)
+	tokenManager, err := auth.NewTokenManager(ctx, repo, auth.DefaultAccessTokenTTL)
+	if err != nil {
+		log.Fatalf("failed to initialize token manager: %v", err)
+	}
+	service := auth.NewService(repo, tokenManager)
+	middleware := auth.NewMiddleware(tokenManager, repo)
+	handler := httpapi.NewAuthHandler(service, auth.DefaultAccessTokenTTL)
+
+	router := httpapi.NewRouter(httpapi.Dependencies{
+		AuthHandler:    handler,
+		AuthMiddleware: middleware,
+	})
+
+	addr := fmt.Sprintf(":%s", cfg.HTTPPort)
+	log.Printf("Starting backend API on %s", addr)
+	if err := http.ListenAndServe(addr, router); err != nil {
+		log.Fatalf("failed to start server: %v", err)
 	}
 }
