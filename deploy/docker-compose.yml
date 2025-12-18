@@ -1,0 +1,61 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dockslim
+      POSTGRES_PASSWORD: dockslim
+      POSTGRES_DB: dockslim
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    image: golang:1.22
+    working_dir: /app
+    command: ["go", "run", "./backend/cmd/api"]
+    volumes:
+      - ..:/app
+    env_file:
+      - ../backend/.env.example
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8080:8080"
+
+  analyzer:
+    image: golang:1.22
+    working_dir: /app
+    command: ["go", "run", "./analyzer/cmd/analyzer"]
+    volumes:
+      - ..:/app
+    env_file:
+      - ../analyzer/.env.example
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    image: node:20
+    working_dir: /app/frontend
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
+    volumes:
+      - ..:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
