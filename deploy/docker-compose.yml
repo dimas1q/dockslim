@@ -26,7 +26,7 @@ services:
     volumes:
       - ..:/app
     env_file:
-      - ../backend/.env.example
+      - ../backend/.env
     depends_on:
       - postgres
       - redis
@@ -40,7 +40,7 @@ services:
     volumes:
       - ..:/app
     env_file:
-      - ../analyzer/.env.example
+      - ../analyzer/.env
     depends_on:
       - postgres
       - redis
