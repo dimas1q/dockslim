@@ -103,13 +103,3 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	resp := meResponse{ID: user.ID.String(), Email: user.Email}
 	writeJSON(w, http.StatusOK, resp)
 }
-
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
-}

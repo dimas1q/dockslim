@@ -9,12 +9,18 @@ import (
 )
 
 type Dependencies struct {
-	AuthHandler    *AuthHandler
-	AuthMiddleware *auth.Middleware
+	AuthHandler     *AuthHandler
+	AuthMiddleware  *auth.Middleware
+	ProjectsHandler *ProjectsHandler
+	AllowedOrigins  []string
 }
 
 func NewRouter(deps Dependencies) http.Handler {
 	r := chi.NewRouter()
+
+	if len(deps.AllowedOrigins) > 0 {
+		r.Use(corsMiddleware(deps.AllowedOrigins))
+	}
 
 	r.Get("/health", healthHandler)
 
@@ -27,6 +33,13 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(deps.AuthMiddleware.Authenticate)
 			r.Get("/me", deps.AuthHandler.Me)
+			r.Route("/projects", func(r chi.Router) {
+				r.Post("/", deps.ProjectsHandler.Create)
+				r.Get("/", deps.ProjectsHandler.List)
+				r.Get("/{id}", deps.ProjectsHandler.Get)
+				r.Patch("/{id}", deps.ProjectsHandler.Update)
+				r.Delete("/{id}", deps.ProjectsHandler.Delete)
+			})
 		})
 	})
 
