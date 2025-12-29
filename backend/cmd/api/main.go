@@ -56,7 +56,7 @@ func main() {
 	authService := auth.NewService(authRepo, tokenManager)
 	projectService := projects.NewService(projectRepo)
 	middleware := auth.NewMiddleware(tokenManager, authRepo)
-	authHandler := httpapi.NewAuthHandler(authService, auth.DefaultAccessTokenTTL)
+	authHandler := httpapi.NewAuthHandler(authService, auth.DefaultAccessTokenTTL, cfg.CookieSecure)
 	projectsHandler := httpapi.NewProjectsHandler(projectService)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{

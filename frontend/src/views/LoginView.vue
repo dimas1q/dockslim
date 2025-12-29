@@ -45,7 +45,7 @@
 import { ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { loginUser } from '../api/client'
-import { loadCurrentUser, setAuthToken } from '../stores/auth'
+import { loadCurrentUser } from '../stores/auth'
 
 const router = useRouter()
 const email = ref('')
@@ -57,8 +57,7 @@ const handleSubmit = async () => {
   error.value = ''
   loading.value = true
   try {
-    const response = await loginUser({ email: email.value, password: password.value })
-    setAuthToken(response.access_token)
+    await loginUser({ email: email.value, password: password.value })
     await loadCurrentUser()
     router.push('/projects')
   } catch (err) {

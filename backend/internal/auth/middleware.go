@@ -18,7 +18,7 @@ func NewMiddleware(tokens *TokenManager, users UserStore) *Middleware {
 
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tokenString, err := extractBearerToken(r.Header.Get("Authorization"))
+		tokenString, err := m.extractToken(r)
 		if err != nil {
 			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
@@ -45,6 +45,14 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 		ctx := WithUser(r.Context(), user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func (m *Middleware) extractToken(r *http.Request) (string, error) {
+	if cookie, err := r.Cookie(AccessCookieName); err == nil && cookie.Value != "" {
+		return cookie.Value, nil
+	}
+
+	return extractBearerToken(r.Header.Get("Authorization"))
 }
 
 func extractBearerToken(header string) (string, error) {

@@ -27,8 +27,8 @@ import { loadCurrentUser, logout, useAuth } from './stores/auth'
 const auth = useAuth()
 const router = useRouter()
 
-const handleLogout = () => {
-  logout()
+const handleLogout = async () => {
+  await logout()
   router.push('/login')
 }
 

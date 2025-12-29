@@ -1,43 +1,40 @@
 import { reactive } from 'vue'
-import { clearToken, fetchMe, getToken, setToken } from '../api/client'
+import { fetchMe, logoutUser } from '../api/client'
 
 const state = reactive({
   user: null,
   loading: false,
   error: null,
+  initialized: false,
 })
 
 export const useAuth = () => state
 
-export const hasToken = () => Boolean(getToken())
-
-export const setAuthToken = (token) => {
-  setToken(token)
-}
-
 export const loadCurrentUser = async () => {
-  if (!hasToken()) {
-    state.user = null
-    return null
-  }
-
   state.loading = true
   state.error = null
   try {
     const user = await fetchMe()
     state.user = user
+    state.initialized = true
     return user
   } catch (error) {
     state.user = null
-    state.error = error.message
-    clearToken()
+    state.error = error.status === 401 ? null : error.message
+    state.initialized = true
     return null
   } finally {
     state.loading = false
   }
 }
 
-export const logout = () => {
-  clearToken()
-  state.user = null
+export const logout = async () => {
+  try {
+    await logoutUser()
+  } catch (error) {
+    state.error = error.message
+  } finally {
+    state.user = null
+    state.initialized = true
+  }
 }

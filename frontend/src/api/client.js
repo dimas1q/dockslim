@@ -1,5 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-const TOKEN_KEY = 'dockslim_access_token'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const buildURL = (path) => {
   if (path.startsWith('http://') || path.startsWith('https://')) {
@@ -8,29 +7,16 @@ const buildURL = (path) => {
   return `${BASE_URL.replace(/\/$/, '')}${path}`
 }
 
-export const getToken = () => localStorage.getItem(TOKEN_KEY)
-
-export const setToken = (token) => {
-  localStorage.setItem(TOKEN_KEY, token)
-}
-
-export const clearToken = () => {
-  localStorage.removeItem(TOKEN_KEY)
-}
-
 export const apiRequest = async (path, options = {}) => {
   const headers = new Headers(options.headers || {})
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json')
   }
-  const token = getToken()
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
 
   const response = await fetch(buildURL(path), {
     ...options,
     headers,
+    credentials: 'include',
   })
 
   if (response.status === 204) {
@@ -64,6 +50,11 @@ export const loginUser = (payload) =>
   })
 
 export const fetchMe = () => apiRequest('/api/v1/me')
+
+export const logoutUser = () =>
+  apiRequest('/api/v1/auth/logout', {
+    method: 'POST',
+  })
 
 export const listProjects = () => apiRequest('/api/v1/projects')
 
