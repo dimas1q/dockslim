@@ -14,6 +14,7 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/db"
 	"github.com/dimas1q/dockslim/backend/internal/httpapi"
 	"github.com/dimas1q/dockslim/backend/internal/migrate"
+	"github.com/dimas1q/dockslim/backend/internal/projects"
 )
 
 func main() {
@@ -46,18 +47,23 @@ func main() {
 		}
 	}
 
-	repo := auth.NewRepository(database)
-	tokenManager, err := auth.NewTokenManager(ctx, repo, auth.DefaultAccessTokenTTL)
+	authRepo := auth.NewRepository(database)
+	projectRepo := projects.NewRepository(database)
+	tokenManager, err := auth.NewTokenManager(ctx, authRepo, auth.DefaultAccessTokenTTL)
 	if err != nil {
 		log.Fatalf("failed to initialize token manager: %v", err)
 	}
-	service := auth.NewService(repo, tokenManager)
-	middleware := auth.NewMiddleware(tokenManager, repo)
-	handler := httpapi.NewAuthHandler(service, auth.DefaultAccessTokenTTL)
+	authService := auth.NewService(authRepo, tokenManager)
+	projectService := projects.NewService(projectRepo)
+	middleware := auth.NewMiddleware(tokenManager, authRepo)
+	authHandler := httpapi.NewAuthHandler(authService, auth.DefaultAccessTokenTTL)
+	projectsHandler := httpapi.NewProjectsHandler(projectService)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
-		AuthHandler:    handler,
-		AuthMiddleware: middleware,
+		AuthHandler:     authHandler,
+		AuthMiddleware:  middleware,
+		ProjectsHandler: projectsHandler,
+		AllowedOrigins:  cfg.CORSAllowedOrigins,
 	})
 
 	addr := fmt.Sprintf(":%s", cfg.HTTPPort)
