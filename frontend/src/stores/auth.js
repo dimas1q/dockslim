@@ -10,22 +10,50 @@ const state = reactive({
 
 export const useAuth = () => state
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export const loadCurrentUser = async () => {
   state.loading = true
   state.error = null
-  try {
-    const user = await fetchMe()
-    state.user = user
-    state.initialized = true
-    return user
-  } catch (error) {
-    state.user = null
-    state.error = error.status === 401 ? null : error.message
-    state.initialized = true
-    return null
-  } finally {
-    state.loading = false
+  const maxAttempts = 5
+  const baseDelayMs = 400
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const user = await fetchMe()
+      state.user = user
+      state.initialized = true
+      return user
+    } catch (error) {
+      const status = error?.status
+      if (status === 401) {
+        state.user = null
+        state.error = null
+        state.initialized = true
+        return null
+      }
+
+      if (typeof status === 'undefined' || status === null) {
+        if (attempt < maxAttempts) {
+          await sleep(baseDelayMs * attempt)
+          continue
+        }
+        state.user = null
+        state.error = error.message
+        state.initialized = true
+        return null
+      }
+
+      state.user = null
+      state.error = error.message
+      state.initialized = true
+      return null
+    }
   }
+
+  state.user = null
+  state.initialized = true
+  return null
 }
 
 export const logout = async () => {
