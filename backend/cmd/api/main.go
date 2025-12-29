@@ -56,7 +56,19 @@ func main() {
 	authService := auth.NewService(authRepo, tokenManager)
 	projectService := projects.NewService(projectRepo)
 	middleware := auth.NewMiddleware(tokenManager, authRepo)
-	authHandler := httpapi.NewAuthHandler(authService, auth.DefaultAccessTokenTTL, cfg.CookieSecure)
+	cookieSameSite, err := parseSameSite(cfg.CookieSameSite)
+	if err != nil {
+		log.Fatalf("invalid COOKIE_SAMESITE: %v", err)
+	}
+	if cookieSameSite == http.SameSiteNoneMode && !cfg.CookieSecure {
+		log.Fatalf("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
+	}
+	authHandler := httpapi.NewAuthHandler(authService, auth.DefaultAccessTokenTTL, httpapi.CookieConfig{
+		SameSite: cookieSameSite,
+		Secure:   cfg.CookieSecure,
+		Domain:   cfg.CookieDomain,
+		Path:     cfg.CookiePath,
+	})
 	projectsHandler := httpapi.NewProjectsHandler(projectService)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
@@ -70,6 +82,19 @@ func main() {
 	log.Printf("Starting backend API on %s", addr)
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("failed to start server: %v", err)
+	}
+}
+
+func parseSameSite(value string) (http.SameSite, error) {
+	switch value {
+	case "lax":
+		return http.SameSiteLaxMode, nil
+	case "strict":
+		return http.SameSiteStrictMode, nil
+	case "none":
+		return http.SameSiteNoneMode, nil
+	default:
+		return http.SameSiteDefaultMode, fmt.Errorf("unsupported value %q", value)
 	}
 }
 

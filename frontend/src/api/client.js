@@ -7,10 +7,25 @@ const buildURL = (path) => {
   return `${BASE_URL.replace(/\/$/, '')}${path}`
 }
 
+const readCookie = (name) => {
+  if (typeof document === 'undefined') {
+    return null
+  }
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 export const apiRequest = async (path, options = {}) => {
   const headers = new Headers(options.headers || {})
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json')
+  }
+  const method = (options.method || 'GET').toUpperCase()
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = readCookie('dockslim_csrf')
+    if (csrfToken && !headers.has('X-CSRF-Token')) {
+      headers.set('X-CSRF-Token', csrfToken)
+    }
   }
 
   const response = await fetch(buildURL(path), {

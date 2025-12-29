@@ -21,6 +21,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	if len(deps.AllowedOrigins) > 0 {
 		r.Use(corsMiddleware(deps.AllowedOrigins))
 	}
+	r.Use(csrfMiddleware)
 
 	r.Get("/health", healthHandler)
 

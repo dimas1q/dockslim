@@ -18,7 +18,10 @@ func TestLoginSetsCookie(t *testing.T) {
 	tokenStore := newMemoryKeyStore()
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
-	handler := NewAuthHandler(service, time.Hour, false)
+	handler := NewAuthHandler(service, time.Hour, CookieConfig{
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
 
 	user := createUser(t, userStore, "user@example.com", "password123")
 
@@ -53,6 +56,20 @@ func TestLoginSetsCookie(t *testing.T) {
 		t.Fatalf("expected SameSite=Lax")
 	}
 
+	var csrfCookie *http.Cookie
+	for _, c := range cookie {
+		if c.Name == auth.CSRFCookieName {
+			csrfCookie = c
+			break
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatalf("expected %s cookie to be set", auth.CSRFCookieName)
+	}
+	if csrfCookie.HttpOnly {
+		t.Fatalf("expected csrf cookie to not be HttpOnly")
+	}
+
 	var payload map[string]any
 	if err := json.NewDecoder(recorder.Body).Decode(&payload); err != nil {
 		t.Fatalf("failed to decode response JSON: %v", err)
@@ -71,7 +88,10 @@ func TestMeWithCookie(t *testing.T) {
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
 	middleware := auth.NewMiddleware(tokenManager, userStore)
-	handler := NewAuthHandler(service, time.Hour, false)
+	handler := NewAuthHandler(service, time.Hour, CookieConfig{
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
 
 	user := createUser(t, userStore, "me@example.com", "password123")
 
@@ -119,7 +139,10 @@ func TestMeWithoutCookieUnauthorized(t *testing.T) {
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
 	middleware := auth.NewMiddleware(tokenManager, userStore)
-	handler := NewAuthHandler(service, time.Hour, false)
+	handler := NewAuthHandler(service, time.Hour, CookieConfig{
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
 
 	router := NewRouter(Dependencies{
 		AuthHandler:     handler,
