@@ -27,7 +27,7 @@ cp analyzer/.env.example analyzer/.env
 
 Environment variables:
 
-- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`), `COOKIE_SECURE` (default: false)
+- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`), `COOKIE_SECURE` (default: false), `COOKIE_SAMESITE` (`lax`, `strict`, or `none`, default: `lax`, requires `COOKIE_SECURE=true` when set to `none`), `COOKIE_DOMAIN` (optional), `COOKIE_PATH` (default: `/`)
 - Analyzer: `ANALYZER_POSTGRES_DSN`, `ANALYZER_REDIS_ADDR`
 - Frontend: `VITE_API_BASE_URL` (optional override for API base URL), `VITE_API_PROXY_TARGET` (Vite dev proxy target, default: `http://localhost:8080`)
 
@@ -60,7 +60,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password123"}'
 
-# Login (stores the HttpOnly cookie)
+# Login (stores the HttpOnly access cookie + CSRF cookie)
 curl -c /tmp/dockslim.cookies -s -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password123"}'
@@ -69,15 +69,19 @@ curl -c /tmp/dockslim.cookies -s -X POST http://localhost:8080/api/v1/auth/login
 curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/me
 
 # Logout
-curl -X POST -b /tmp/dockslim.cookies http://localhost:8080/api/v1/auth/logout
+curl -X POST -b /tmp/dockslim.cookies \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  http://localhost:8080/api/v1/auth/logout
 ```
 
 Projects API:
 
 ```bash
-# Create project
+# Create project (include X-CSRF-Token from dockslim_csrf cookie)
+CSRF_TOKEN=$(grep dockslim_csrf /tmp/dockslim.cookies | awk '{print $7}')
 curl -X POST http://localhost:8080/api/v1/projects \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
   -b /tmp/dockslim.cookies \
   -d '{"name": "My Project"}'
 
@@ -91,11 +95,13 @@ curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/projects/${PROJECT_ID
 # Update project name (owner only)
 curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID} \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
   -b /tmp/dockslim.cookies \
   -d '{"name": "Renamed Project"}'
 
 # Delete project (owner only)
 curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID} \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
   -b /tmp/dockslim.cookies
 ```
 

@@ -13,7 +13,10 @@ import (
 
 func TestAuthHandlerRegisterConflictJSON(t *testing.T) {
 	service := auth.NewService(&conflictUserStore{}, &noopTokenIssuer{})
-	handler := NewAuthHandler(service, time.Hour, false)
+	handler := NewAuthHandler(service, time.Hour, CookieConfig{
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(`{"email":"user@example.com","password":"password123"}`))

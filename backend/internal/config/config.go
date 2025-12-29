@@ -13,6 +13,9 @@ type Config struct {
 	MigrationsPath     string
 	CORSAllowedOrigins []string
 	CookieSecure       bool
+	CookieSameSite     string
+	CookieDomain       string
+	CookiePath         string
 }
 
 // Load reads configuration from environment variables with sane defaults for development.
@@ -24,6 +27,9 @@ func Load() Config {
 		MigrationsPath:     getEnv("MIGRATIONS_PATH", "backend/migrations"),
 		CORSAllowedOrigins: getEnvAsList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
 		CookieSecure:       getEnvAsBool("COOKIE_SECURE", false),
+		CookieSameSite:     strings.ToLower(getEnv("COOKIE_SAMESITE", "lax")),
+		CookieDomain:       getEnv("COOKIE_DOMAIN", ""),
+		CookiePath:         getEnv("COOKIE_PATH", "/"),
 	}
 
 	return cfg
