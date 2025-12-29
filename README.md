@@ -27,9 +27,9 @@ cp analyzer/.env.example analyzer/.env
 
 Environment variables:
 
-- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`)
+- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`), `COOKIE_SECURE` (default: false)
 - Analyzer: `ANALYZER_POSTGRES_DSN`, `ANALYZER_REDIS_ADDR`
-- Frontend: `VITE_API_BASE_URL` (default: `http://localhost:8080`)
+- Frontend: `VITE_API_BASE_URL` (optional override for API base URL), `VITE_API_PROXY_TARGET` (Vite dev proxy target, default: `http://localhost:8080`)
 
 ## Running Locally
 
@@ -60,13 +60,16 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password123"}'
 
-# Login and capture the access token
-ACCESS_TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+# Login (stores the HttpOnly cookie)
+curl -c /tmp/dockslim.cookies -s -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password123"}' | jq -r '.access_token')
+  -d '{"email": "user@example.com", "password": "password123"}'
 
 # Fetch the current user
-curl -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:8080/api/v1/me
+curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/me
+
+# Logout
+curl -X POST -b /tmp/dockslim.cookies http://localhost:8080/api/v1/auth/logout
 ```
 
 Projects API:
@@ -75,25 +78,25 @@ Projects API:
 # Create project
 curl -X POST http://localhost:8080/api/v1/projects \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -b /tmp/dockslim.cookies \
   -d '{"name": "My Project"}'
 
 # List projects
-curl -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:8080/api/v1/projects
+curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/projects
 
 # Get project by ID
 PROJECT_ID="your-project-id"
-curl -H "Authorization: Bearer ${ACCESS_TOKEN}" http://localhost:8080/api/v1/projects/${PROJECT_ID}
+curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/projects/${PROJECT_ID}
 
 # Update project name (owner only)
 curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID} \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -b /tmp/dockslim.cookies \
   -d '{"name": "Renamed Project"}'
 
 # Delete project (owner only)
 curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID} \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+  -b /tmp/dockslim.cookies
 ```
 
 ### Analyzer Worker
@@ -115,7 +118,7 @@ npm run dev
 
 Then open http://localhost:5173 to view the DockSlim UI.
 
-The backend allows CORS requests from `http://localhost:5173` by default so the frontend can call the API during development.
+The Vite dev server proxies `/api` and `/health` to the backend (configured via `VITE_API_PROXY_TARGET`), so the frontend can use cookie-based auth without CORS setup in development.
 
 ## Docker Compose Dev Stack
 

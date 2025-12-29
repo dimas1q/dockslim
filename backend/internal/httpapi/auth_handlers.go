@@ -12,10 +12,11 @@ import (
 type AuthHandler struct {
 	service        *auth.Service
 	accessTokenTTL time.Duration
+	cookieSecure   bool
 }
 
-func NewAuthHandler(service *auth.Service, accessTokenTTL time.Duration) *AuthHandler {
-	return &AuthHandler{service: service, accessTokenTTL: accessTokenTTL}
+func NewAuthHandler(service *auth.Service, accessTokenTTL time.Duration, cookieSecure bool) *AuthHandler {
+	return &AuthHandler{service: service, accessTokenTTL: accessTokenTTL, cookieSecure: cookieSecure}
 }
 
 type registerRequest struct {
@@ -58,9 +59,8 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int64  `json:"expires_in"`
+	ID    string `json:"id"`
+	Email string `json:"email"`
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +70,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, token, err := h.service.Login(r.Context(), req.Email, req.Password)
+	user, token, err := h.service.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			writeError(w, http.StatusUnauthorized, err.Error())
@@ -80,11 +80,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := loginResponse{
-		AccessToken: token,
-		TokenType:   "Bearer",
-		ExpiresIn:   int64(h.accessTokenTTL.Seconds()),
-	}
+	h.setAccessCookie(w, token)
+	resp := loginResponse{ID: user.ID.String(), Email: user.Email}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -102,4 +99,33 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	resp := meResponse{ID: user.ID.String(), Email: user.Email}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	h.clearAccessCookie(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AuthHandler) setAccessCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.AccessCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   h.cookieSecure,
+		MaxAge:   int(h.accessTokenTTL.Seconds()),
+	})
+}
+
+func (h *AuthHandler) clearAccessCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.AccessCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   h.cookieSecure,
+		MaxAge:   -1,
+	})
 }

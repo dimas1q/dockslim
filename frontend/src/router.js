@@ -3,7 +3,7 @@ import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
 import ProjectsView from './views/ProjectsView.vue'
 import ProjectDetailView from './views/ProjectDetailView.vue'
-import { hasToken, loadCurrentUser } from './stores/auth'
+import { loadCurrentUser, useAuth } from './stores/auth'
 
 const routes = [
   { path: '/', redirect: '/projects' },
@@ -28,17 +28,18 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
+  const auth = useAuth()
 
-  if (requiresAuth && !hasToken()) {
+  if (!auth.initialized) {
+    await loadCurrentUser()
+  }
+
+  if (requiresAuth && !auth.user) {
     return { path: '/login' }
   }
 
-  if ((to.path === '/login' || to.path === '/register') && hasToken()) {
+  if ((to.path === '/login' || to.path === '/register') && auth.user) {
     return { path: '/projects' }
-  }
-
-  if (requiresAuth && hasToken()) {
-    await loadCurrentUser()
   }
 
   return true
