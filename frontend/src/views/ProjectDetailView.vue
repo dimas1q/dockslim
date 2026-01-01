@@ -24,13 +24,139 @@
         <p v-if="deleteError" class="text-sm text-red-400">{{ deleteError }}</p>
       </div>
     </div>
+
+    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 class="text-xl font-semibold">Registries</h3>
+          <p class="text-sm text-slate-400 mt-1">
+            Manage container registries connected to this project.
+          </p>
+        </div>
+        <button
+          v-if="isOwner"
+          class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+          @click="toggleForm"
+        >
+          {{ showForm ? 'Close' : 'Add registry' }}
+        </button>
+      </div>
+
+      <p v-if="!isOwner && project" class="text-xs text-slate-500">
+        Only project owners can manage registries.
+      </p>
+
+      <div
+        v-if="showForm && isOwner"
+        class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4"
+      >
+        <h4 class="text-sm font-semibold text-slate-200">Add a registry</h4>
+        <form class="grid gap-4 md:grid-cols-2" @submit.prevent="handleCreateRegistry">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Name</label>
+            <input
+              v-model="form.name"
+              type="text"
+              placeholder="Production registry"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+            <p v-if="fieldErrors.name" class="text-xs text-red-400">{{ fieldErrors.name }}</p>
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Registry URL</label>
+            <input
+              v-model="form.registry_url"
+              type="url"
+              placeholder="https://registry.example.com"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+            <p v-if="fieldErrors.registry_url" class="text-xs text-red-400">
+              {{ fieldErrors.registry_url }}
+            </p>
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Username (optional)</label>
+            <input
+              v-model="form.username"
+              type="text"
+              placeholder="ci-bot"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Password (optional)</label>
+            <input
+              v-model="form.password"
+              type="password"
+              placeholder="••••••••"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+          </div>
+          <div class="md:col-span-2 flex items-center gap-3">
+            <button
+              type="submit"
+              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+              :disabled="creatingRegistry"
+            >
+              {{ creatingRegistry ? 'Saving...' : 'Save registry' }}
+            </button>
+            <button
+              type="button"
+              class="text-sm text-slate-400 hover:text-slate-200"
+              :disabled="creatingRegistry"
+              @click="resetForm"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+        <p v-if="createRegistryError" class="text-sm text-red-400">{{ createRegistryError }}</p>
+      </div>
+
+      <div>
+        <p v-if="registriesLoading" class="text-sm text-slate-400">Loading registries...</p>
+        <p v-else-if="registriesError" class="text-sm text-red-400">{{ registriesError }}</p>
+        <p v-else-if="registries.length === 0" class="text-sm text-slate-400">
+          No registries added yet.
+        </p>
+        <div v-else class="grid gap-4 md:grid-cols-2">
+          <div
+            v-for="registry in registries"
+            :key="registry.id"
+            class="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-base font-semibold">{{ registry.name }}</p>
+                <p class="text-xs text-slate-500 mt-1">{{ registry.registry_url }}</p>
+              </div>
+              <span class="rounded-full bg-slate-800/70 px-2 py-1 text-xs text-slate-200">
+                Generic
+              </span>
+            </div>
+            <p v-if="registry.username" class="text-xs text-slate-400">
+              Username: {{ registry.username }}
+            </p>
+            <div v-if="isOwner" class="pt-1">
+              <button
+                class="text-xs text-red-300 hover:text-red-200"
+                :disabled="deletingRegistryId === registry.id"
+                @click="handleDeleteRegistry(registry.id)"
+              >
+                {{ deletingRegistryId === registry.id ? 'Deleting...' : 'Delete' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { deleteProject, getProject } from '../api/client'
+import { createRegistry, deleteProject, deleteRegistry, getProject, listRegistries } from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,12 +165,30 @@ const loading = ref(true)
 const error = ref('')
 const deleting = ref(false)
 const deleteError = ref('')
+const registries = ref([])
+const registriesLoading = ref(false)
+const registriesError = ref('')
+const showForm = ref(false)
+const creatingRegistry = ref(false)
+const createRegistryError = ref('')
+const deletingRegistryId = ref(null)
+const fieldErrors = ref({})
+
+const form = ref({
+  name: '',
+  registry_url: '',
+  username: '',
+  password: '',
+})
+
+const isOwner = computed(() => project.value?.role === 'owner')
 
 const fetchProject = async () => {
   loading.value = true
   error.value = ''
   try {
     project.value = await getProject(route.params.id)
+    await fetchRegistries()
   } catch (err) {
     error.value = err.message
   } finally {
@@ -53,6 +197,82 @@ const fetchProject = async () => {
 }
 
 onMounted(fetchProject)
+
+const fetchRegistries = async () => {
+  registriesLoading.value = true
+  registriesError.value = ''
+  try {
+    registries.value = await listRegistries(route.params.id)
+  } catch (err) {
+    registriesError.value = err.message
+  } finally {
+    registriesLoading.value = false
+  }
+}
+
+const toggleForm = () => {
+  showForm.value = !showForm.value
+  if (!showForm.value) {
+    resetForm()
+  }
+}
+
+const resetForm = () => {
+  form.value = {
+    name: '',
+    registry_url: '',
+    username: '',
+    password: '',
+  }
+  fieldErrors.value = {}
+  createRegistryError.value = ''
+}
+
+const handleCreateRegistry = async () => {
+  fieldErrors.value = {}
+  createRegistryError.value = ''
+
+  if (!form.value.name.trim()) {
+    fieldErrors.value.name = 'Name is required.'
+  }
+  if (!form.value.registry_url.trim()) {
+    fieldErrors.value.registry_url = 'Registry URL is required.'
+  }
+
+  if (Object.keys(fieldErrors.value).length > 0) {
+    return
+  }
+
+  creatingRegistry.value = true
+  try {
+    await createRegistry(route.params.id, {
+      name: form.value.name,
+      type: 'generic',
+      registry_url: form.value.registry_url,
+      username: form.value.username,
+      password: form.value.password,
+    })
+    showForm.value = false
+    resetForm()
+    await fetchRegistries()
+  } catch (err) {
+    createRegistryError.value = err.message
+  } finally {
+    creatingRegistry.value = false
+  }
+}
+
+const handleDeleteRegistry = async (registryId) => {
+  deletingRegistryId.value = registryId
+  try {
+    await deleteRegistry(route.params.id, registryId)
+    await fetchRegistries()
+  } catch (err) {
+    registriesError.value = err.message
+  } finally {
+    deletingRegistryId.value = null
+  }
+}
 
 const handleDelete = async () => {
   if (!project.value) {

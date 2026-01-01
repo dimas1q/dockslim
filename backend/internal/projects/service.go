@@ -82,6 +82,17 @@ func (s *Service) DeleteProject(ctx context.Context, userID, projectID uuid.UUID
 	return s.repo.DeleteProject(ctx, projectID)
 }
 
+func (s *Service) GetMemberRole(ctx context.Context, userID, projectID uuid.UUID) (string, error) {
+	role, err := s.repo.GetMemberRole(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, ErrProjectMemberNotFound) {
+			return "", ErrProjectNotFound
+		}
+		return "", err
+	}
+	return role, nil
+}
+
 func validateProjectName(name string) (string, error) {
 	clean := strings.TrimSpace(name)
 	if len(clean) < 2 || len(clean) > 100 {
