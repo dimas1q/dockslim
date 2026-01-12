@@ -14,6 +14,7 @@
             <p class="text-slate-400 mt-2">Project details coming soon.</p>
           </div>
           <button
+            v-if="isOwner"
             class="inline-flex items-center justify-center rounded-lg border border-red-500/60 px-4 py-2 text-sm text-red-300 hover:bg-red-500/10"
             :disabled="deleting"
             @click="handleDelete"
@@ -252,6 +253,7 @@ const handleCreateRegistry = async () => {
       username: form.value.username,
       password: form.value.password,
     })
+    form.value.password = ''
     showForm.value = false
     resetForm()
     await fetchRegistries()

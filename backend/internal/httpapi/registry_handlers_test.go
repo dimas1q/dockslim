@@ -17,6 +17,7 @@ import (
 
 type registryRepoStub struct {
 	registries []registries.Registry
+	createErr  error
 }
 
 func (r *registryRepoStub) ListRegistriesByProject(ctx context.Context, projectID uuid.UUID) ([]registries.Registry, error) {
@@ -24,6 +25,9 @@ func (r *registryRepoStub) ListRegistriesByProject(ctx context.Context, projectI
 }
 
 func (r *registryRepoStub) CreateRegistry(ctx context.Context, params registries.CreateRegistryParams) (registries.Registry, error) {
+	if r.createErr != nil {
+		return registries.Registry{}, r.createErr
+	}
 	registry := registries.Registry{
 		ID:          uuid.New(),
 		ProjectID:   params.ProjectID,
@@ -79,6 +83,36 @@ func TestRegistriesHandlerCreateOwnerOnly(t *testing.T) {
 
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("expected status 403, got %d", recorder.Code)
+	}
+}
+
+func TestRegistriesHandlerCreateDuplicateName(t *testing.T) {
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	repo := &registryRepoStub{createErr: registries.ErrRegistryNameConflict}
+	members := &membershipStub{role: projects.RoleOwner}
+	service := registries.NewService(repo, members, registries.EncryptionKey{KeyMaterial: []byte("01234567890123456789012345678901")})
+	handler := NewRegistriesHandler(service)
+
+	payload := map[string]string{
+		"name":         "Registry",
+		"type":         "generic",
+		"registry_url": "https://registry.example.com",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/"+projectID.String()+"/registries", bytes.NewBuffer(body))
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParam(req, "projectId", projectID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Create(recorder, req)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d", recorder.Code)
 	}
 }
 

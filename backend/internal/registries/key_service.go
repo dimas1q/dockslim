@@ -13,7 +13,11 @@ type KeyRepository interface {
 	CreateKey(ctx context.Context, key EncryptionKey) (EncryptionKey, error)
 }
 
+// KeyPurposeRegistrySecrets denotes keys used for registry credential encryption.
+const KeyPurposeRegistrySecrets = "registry_secrets"
+
 func EnsureActiveKey(ctx context.Context, repo KeyRepository) (EncryptionKey, error) {
+	_ = KeyPurposeRegistrySecrets
 	key, err := repo.GetActiveKey(ctx)
 	if err == nil {
 		return key, nil

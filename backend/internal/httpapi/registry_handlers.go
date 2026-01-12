@@ -102,6 +102,8 @@ func (h *RegistriesHandler) Create(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "project not found")
 		case errors.Is(err, registries.ErrNotOwner):
 			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, registries.ErrRegistryNameConflict):
+			writeError(w, http.StatusConflict, "registry with this name already exists")
 		case errors.Is(err, registries.ErrInvalidRegistryName),
 			errors.Is(err, registries.ErrInvalidRegistryType),
 			errors.Is(err, registries.ErrInvalidRegistryURL):

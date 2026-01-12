@@ -6,11 +6,13 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 )
 
 var (
-	ErrKeyNotFound      = errors.New("encryption key not found")
-	ErrRegistryNotFound = errors.New("registry not found")
+	ErrKeyNotFound          = errors.New("encryption key not found")
+	ErrRegistryNotFound     = errors.New("registry not found")
+	ErrRegistryNameConflict = errors.New("registry name already exists")
 )
 
 type Repository struct {
@@ -136,6 +138,10 @@ func (r *Repository) CreateRegistry(ctx context.Context, params CreateRegistryPa
 		&registry.UpdatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Registry{}, ErrRegistryNameConflict
+		}
 		return Registry{}, err
 	}
 
