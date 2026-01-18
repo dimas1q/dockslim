@@ -40,6 +40,10 @@ func (r *analysisRepoStub) DeleteAnalysis(ctx context.Context, projectID, analys
 	return nil
 }
 
+func (r *analysisRepoStub) RerunAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	return nil
+}
+
 type registryStoreStub struct {
 	err error
 }

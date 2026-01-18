@@ -116,3 +116,8 @@ export const deleteAnalysis = (projectId, analysisId) =>
   apiRequest(`/api/v1/projects/${projectId}/analyses/${analysisId}`, {
     method: 'DELETE',
   })
+
+export const rerunAnalysis = (projectId, analysisId) =>
+  apiRequest(`/api/v1/projects/${projectId}/analyses/${analysisId}/rerun`, {
+    method: 'POST',
+  })

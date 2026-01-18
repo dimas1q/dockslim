@@ -15,10 +15,21 @@
               Created {{ formatDate(analysis?.created_at) }}
             </p>
           </div>
-          <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass">
-            {{ analysis?.status }}
-          </span>
+          <div class="flex items-center gap-3">
+            <button
+              v-if="isOwner"
+              class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-60"
+              :disabled="rerunning"
+              @click="handleRerun"
+            >
+              {{ rerunning ? 'Re-running...' : 'Re-run analysis' }}
+            </button>
+            <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass">
+              {{ analysis?.status }}
+            </span>
+          </div>
         </div>
+        <p v-if="rerunError" class="text-sm text-rose-400">{{ rerunError }}</p>
 
         <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300 mt-4">
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
@@ -42,7 +53,10 @@
             <p class="text-sm font-semibold">Result</p>
             <span v-if="polling" class="text-xs text-slate-400">Updating...</span>
           </div>
-          <p v-if="!analysis?.result_json" class="text-sm text-slate-400">
+          <p v-if="failedMessage" class="text-sm text-rose-300">
+            {{ failedMessage }}
+          </p>
+          <p v-else-if="!analysis?.result_json" class="text-sm text-slate-400">
             Layer breakdown coming soon.
           </p>
           <pre
@@ -60,7 +74,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { getAnalysis } from '../api/client'
+import { getAnalysis, getProject, rerunAnalysis } from '../api/client'
 
 const route = useRoute()
 const projectId = route.params.id
@@ -69,7 +83,10 @@ const analysisId = route.params.analysisId
 const analysis = ref(null)
 const loading = ref(true)
 const error = ref('')
+const project = ref(null)
 const polling = ref(false)
+const rerunning = ref(false)
+const rerunError = ref('')
 let pollTimer = null
 
 const fetchAnalysis = async ({ silent = false } = {}) => {
@@ -88,7 +105,18 @@ const fetchAnalysis = async ({ silent = false } = {}) => {
   }
 }
 
-onMounted(fetchAnalysis)
+const fetchProject = async () => {
+  try {
+    project.value = await getProject(projectId)
+  } catch (err) {
+    // ignore role fetch errors
+  }
+}
+
+onMounted(() => {
+  fetchProject()
+  fetchAnalysis()
+})
 onBeforeUnmount(() => {
   if (pollTimer) {
     clearInterval(pollTimer)
@@ -96,6 +124,7 @@ onBeforeUnmount(() => {
 })
 
 const isActive = computed(() => ['queued', 'running'].includes(analysis.value?.status))
+const isOwner = computed(() => project.value?.role === 'owner')
 
 const startPolling = () => {
   if (pollTimer) {
@@ -157,6 +186,16 @@ const statusBadgeClass = computed(() => {
   }
 })
 
+const failedMessage = computed(() => {
+  if (analysis.value?.status !== 'failed') {
+    return ''
+  }
+  if (analysis.value?.result_json?.error) {
+    return analysis.value.result_json.error
+  }
+  return 'Analysis failed.'
+})
+
 const formattedResult = computed(() => {
   if (!analysis.value?.result_json) {
     return ''
@@ -167,4 +206,26 @@ const formattedResult = computed(() => {
     return String(analysis.value.result_json)
   }
 })
+
+const handleRerun = async () => {
+  const confirmed = window.confirm('Re-run this analysis? It will overwrite the current result.')
+  if (!confirmed) {
+    return
+  }
+
+  rerunError.value = ''
+  rerunning.value = true
+  try {
+    await rerunAnalysis(projectId, analysisId)
+    await fetchAnalysis()
+  } catch (err) {
+    if (err.status === 409) {
+      rerunError.value = 'Analysis is already running.'
+    } else {
+      rerunError.value = err.message
+    }
+  } finally {
+    rerunning.value = false
+  }
+}
 </script>

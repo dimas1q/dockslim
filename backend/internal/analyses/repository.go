@@ -274,3 +274,48 @@ func (r *Repository) DeleteAnalysis(ctx context.Context, projectID, analysisID u
 	}
 	return nil
 }
+
+func (r *Repository) RerunAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	const updateQuery = `
+		UPDATE image_analyses
+		SET status = $1,
+			total_size_bytes = NULL,
+			result_json = NULL,
+			started_at = NULL,
+			finished_at = NULL,
+			updated_at = NOW()
+		WHERE id = $2 AND project_id = $3
+	`
+	const jobQuery = `
+		INSERT INTO analysis_jobs (analysis_id, status)
+		VALUES ($1, $2)
+	`
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx, updateQuery, StatusQueued, analysisID, projectID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrAnalysisNotFound
+	}
+
+	if _, err = tx.ExecContext(ctx, jobQuery, analysisID, StatusQueued); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}

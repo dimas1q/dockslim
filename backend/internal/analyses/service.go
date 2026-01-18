@@ -16,6 +16,7 @@ var (
 	ErrInvalidImage     = errors.New("invalid image")
 	ErrInvalidRegistry  = errors.New("invalid registry")
 	ErrRegistryMismatch = errors.New("image registry does not match selected registry")
+	ErrAnalysisRunning  = errors.New("analysis is running")
 )
 
 type RepositoryStore interface {
@@ -23,6 +24,7 @@ type RepositoryStore interface {
 	GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (ImageAnalysis, error)
 	CreateAnalysis(ctx context.Context, params CreateAnalysisParams) (ImageAnalysis, error)
 	DeleteAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error
+	RerunAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error
 }
 
 type MembershipStore interface {
@@ -126,4 +128,27 @@ func (s *Service) DeleteAnalysis(ctx context.Context, userID, projectID, analysi
 	}
 
 	return s.repo.DeleteAnalysis(ctx, projectID, analysisID)
+}
+
+func (s *Service) RerunAnalysis(ctx context.Context, userID, projectID, analysisID uuid.UUID) error {
+	role, err := s.members.GetMemberRole(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, projects.ErrProjectMemberNotFound) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if role != projects.RoleOwner {
+		return ErrNotOwner
+	}
+
+	analysis, err := s.repo.GetAnalysisForProject(ctx, projectID, analysisID)
+	if err != nil {
+		return err
+	}
+	if analysis.Status == StatusRunning {
+		return ErrAnalysisRunning
+	}
+
+	return s.repo.RerunAnalysis(ctx, projectID, analysisID)
 }

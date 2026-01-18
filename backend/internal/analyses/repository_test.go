@@ -76,3 +76,32 @@ func TestCreateAnalysisEnqueuesJob(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestRerunAnalysisResetsAndEnqueuesJob(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewRepository(db)
+	projectID := uuid.New()
+	analysisID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE image_analyses").
+		WithArgs(StatusQueued, analysisID, projectID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO analysis_jobs").
+		WithArgs(analysisID, StatusQueued).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	if err := repo.RerunAnalysis(context.Background(), projectID, analysisID); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}

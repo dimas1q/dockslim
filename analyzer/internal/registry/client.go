@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -75,7 +76,7 @@ func (c *Client) FetchManifest(ctx context.Context, registryURL, image, tag, use
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ManifestSummary{}, fmt.Errorf("manifest fetch failed with status %d", resp.StatusCode)
+		return ManifestSummary{}, HTTPStatusError{StatusCode: resp.StatusCode}
 	}
 
 	var manifest struct {
@@ -104,11 +105,54 @@ func (c *Client) FetchManifest(ctx context.Context, registryURL, image, tag, use
 	}, nil
 }
 
+type HTTPStatusError struct {
+	StatusCode int
+}
+
+func (err HTTPStatusError) Error() string {
+	return fmt.Sprintf("manifest fetch failed with status %d", err.StatusCode)
+}
+
 func buildRegistryURL(base, endpoint string) (string, error) {
 	parsed, err := url.Parse(base)
 	if err != nil {
 		return "", err
 	}
-	parsed.Path = path.Clean(path.Join(parsed.Path, endpoint))
+	parsed.Path = joinRegistryPath(parsed.Path, endpoint)
 	return parsed.String(), nil
+}
+
+func joinRegistryPath(basePath, endpoint string) string {
+	basePath = strings.TrimSuffix(basePath, "/")
+	endpoint = strings.TrimPrefix(endpoint, "/")
+
+	switch {
+	case basePath == "" && endpoint == "":
+		return "/"
+	case basePath == "":
+		basePath = "/"
+	}
+
+	if basePath == "/" {
+		basePath = ""
+	}
+
+	combined := basePath
+	if endpoint != "" {
+		combined = basePath + "/" + endpoint
+	}
+
+	if strings.HasSuffix(endpoint, "/") && !strings.HasSuffix(combined, "/") {
+		combined += "/"
+	}
+
+	if combined == "" {
+		return "/"
+	}
+
+	if !strings.HasPrefix(combined, "/") {
+		return "/" + combined
+	}
+
+	return combined
 }

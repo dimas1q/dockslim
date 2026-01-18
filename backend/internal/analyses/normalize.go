@@ -20,12 +20,13 @@ func normalizeImageReference(image, registryURL string) (string, error) {
 		return image, nil
 	}
 
-	registryHost, err := extractRegistryHost(registryURL)
+	registryHost, err := extractRegistryHostname(registryURL)
 	if err != nil {
 		return "", ErrInvalidRegistry
 	}
 
-	if !strings.EqualFold(hostPart, registryHost) {
+	imageHost := extractImageHostname(hostPart)
+	if !strings.EqualFold(imageHost, registryHost) {
 		return "", ErrRegistryMismatch
 	}
 
@@ -41,13 +42,24 @@ func looksLikeRegistryHost(value string) bool {
 	return strings.Contains(lower, ".") || strings.Contains(lower, ":") || lower == "localhost"
 }
 
-func extractRegistryHost(registryURL string) (string, error) {
+func extractRegistryHostname(registryURL string) (string, error) {
 	parsed, err := url.Parse(registryURL)
 	if err != nil {
 		return "", err
 	}
-	if parsed.Host == "" {
+	if parsed.Hostname() == "" {
 		return "", ErrInvalidRegistry
 	}
-	return parsed.Host, nil
+	return parsed.Hostname(), nil
+}
+
+func extractImageHostname(hostPart string) string {
+	if strings.HasPrefix(hostPart, "[") {
+		return strings.Trim(hostPart, "[]")
+	}
+	if strings.Contains(hostPart, ":") {
+		parts := strings.Split(hostPart, ":")
+		return parts[0]
+	}
+	return hostPart
 }

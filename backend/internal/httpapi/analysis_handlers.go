@@ -194,6 +194,44 @@ func (h *AnalysesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *AnalysesHandler) Rerun(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID, err := parseUUIDParam(r, "projectId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	analysisID, err := parseUUIDParam(r, "analysisId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid analysis id")
+		return
+	}
+
+	if err := h.service.RerunAnalysis(r.Context(), user.ID, projectID, analysisID); err != nil {
+		switch {
+		case errors.Is(err, analyses.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, analyses.ErrNotOwner):
+			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, analyses.ErrAnalysisNotFound):
+			writeError(w, http.StatusNotFound, "analysis not found")
+		case errors.Is(err, analyses.ErrAnalysisRunning):
+			writeError(w, http.StatusConflict, "analysis is running")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to rerun analysis")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func toAnalysisResponse(analysis analyses.ImageAnalysis) analysisResponse {
 	var registryID *string
 	if analysis.RegistryID != nil {

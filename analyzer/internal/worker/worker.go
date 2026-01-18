@@ -173,21 +173,8 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 
 	manifestSummary, err := w.client.FetchManifest(ctx, input.RegistryURL, input.Image, input.Tag, input.Username, password)
 	if err != nil {
-		result := map[string]any{
-			"note":    "analysis stub",
-			"image":   input.Image,
-			"tag":     input.Tag,
-			"warning": fmt.Sprintf("manifest fetch failed: %v", err),
-		}
-		resultJSON, marshalErr := json.Marshal(result)
-		if marshalErr != nil {
-			_ = w.failJob(ctx, job.ID, job.AnalysisID, marshalErr)
-			return marshalErr
-		}
-		if err := w.completeJob(ctx, job.ID, job.AnalysisID, resultJSON, nil); err != nil {
-			return err
-		}
-		return nil
+		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
+		return err
 	}
 
 	result := map[string]any{
@@ -322,12 +309,13 @@ func normalizeImageReference(image, registryURL string) (string, error) {
 		return image, nil
 	}
 
-	registryHost, err := extractRegistryHost(registryURL)
+	registryHost, err := extractRegistryHostname(registryURL)
 	if err != nil {
 		return "", err
 	}
 
-	if !strings.EqualFold(hostPart, registryHost) {
+	imageHost := extractImageHostname(hostPart)
+	if !strings.EqualFold(imageHost, registryHost) {
 		return "", fmt.Errorf("image registry does not match selected registry")
 	}
 
@@ -343,15 +331,26 @@ func looksLikeRegistryHost(value string) bool {
 	return strings.Contains(lower, ".") || strings.Contains(lower, ":") || lower == "localhost"
 }
 
-func extractRegistryHost(registryURL string) (string, error) {
+func extractRegistryHostname(registryURL string) (string, error) {
 	parsed, err := url.Parse(registryURL)
 	if err != nil {
 		return "", err
 	}
-	if parsed.Host == "" {
+	if parsed.Hostname() == "" {
 		return "", fmt.Errorf("invalid registry url")
 	}
-	return parsed.Host, nil
+	return parsed.Hostname(), nil
+}
+
+func extractImageHostname(hostPart string) string {
+	if strings.HasPrefix(hostPart, "[") {
+		return strings.Trim(hostPart, "[]")
+	}
+	if strings.Contains(hostPart, ":") {
+		parts := strings.Split(hostPart, ":")
+		return parts[0]
+	}
+	return hostPart
 }
 
 func (w *Worker) failJob(ctx context.Context, jobID, analysisID uuid.UUID, failure error) error {
