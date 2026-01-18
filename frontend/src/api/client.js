@@ -85,3 +85,17 @@ export const deleteProject = (projectId) =>
   apiRequest(`/api/v1/projects/${projectId}`, {
     method: 'DELETE',
   })
+
+export const listRegistries = (projectId) =>
+  apiRequest(`/api/v1/projects/${projectId}/registries`)
+
+export const createRegistry = (projectId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}/registries`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteRegistry = (projectId, registryId) =>
+  apiRequest(`/api/v1/projects/${projectId}/registries/${registryId}`, {
+    method: 'DELETE',
+  })

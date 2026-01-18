@@ -29,6 +29,7 @@ type projectResponse struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Role      string    `json:"role,omitempty"`
 }
 
 func (h *ProjectsHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +103,17 @@ func (h *ProjectsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toProjectResponse(project))
+	role, err := h.service.GetMemberRole(r.Context(), user.ID, projectID)
+	if err != nil {
+		if errors.Is(err, projects.ErrProjectNotFound) {
+			writeError(w, http.StatusNotFound, "project not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to fetch project role")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toProjectResponseWithRole(project, role))
 }
 
 func (h *ProjectsHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -182,4 +193,10 @@ func toProjectResponse(project projects.Project) projectResponse {
 		CreatedAt: project.CreatedAt,
 		UpdatedAt: project.UpdatedAt,
 	}
+}
+
+func toProjectResponseWithRole(project projects.Project, role string) projectResponse {
+	resp := toProjectResponse(project)
+	resp.Role = role
+	return resp
 }

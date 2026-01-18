@@ -9,10 +9,11 @@ import (
 )
 
 type Dependencies struct {
-	AuthHandler     *AuthHandler
-	AuthMiddleware  *auth.Middleware
-	ProjectsHandler *ProjectsHandler
-	AllowedOrigins  []string
+	AuthHandler       *AuthHandler
+	AuthMiddleware    *auth.Middleware
+	ProjectsHandler   *ProjectsHandler
+	RegistriesHandler *RegistriesHandler
+	AllowedOrigins    []string
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -41,6 +42,11 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Get("/{id}", deps.ProjectsHandler.Get)
 				r.Patch("/{id}", deps.ProjectsHandler.Update)
 				r.Delete("/{id}", deps.ProjectsHandler.Delete)
+				r.Route("/{projectId}/registries", func(r chi.Router) {
+					r.Get("/", deps.RegistriesHandler.List)
+					r.Post("/", deps.RegistriesHandler.Create)
+					r.Delete("/{registryId}", deps.RegistriesHandler.Delete)
+				})
 			})
 		})
 	})
