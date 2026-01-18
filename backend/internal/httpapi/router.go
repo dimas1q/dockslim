@@ -13,6 +13,7 @@ type Dependencies struct {
 	AuthMiddleware    *auth.Middleware
 	ProjectsHandler   *ProjectsHandler
 	RegistriesHandler *RegistriesHandler
+	AnalysesHandler   *AnalysesHandler
 	AllowedOrigins    []string
 }
 
@@ -46,6 +47,11 @@ func NewRouter(deps Dependencies) http.Handler {
 					r.Get("/", deps.RegistriesHandler.List)
 					r.Post("/", deps.RegistriesHandler.Create)
 					r.Delete("/{registryId}", deps.RegistriesHandler.Delete)
+				})
+				r.Route("/{projectId}/analyses", func(r chi.Router) {
+					r.Get("/", deps.AnalysesHandler.List)
+					r.Post("/", deps.AnalysesHandler.Create)
+					r.Get("/{analysisId}", deps.AnalysesHandler.Get)
 				})
 			})
 		})
