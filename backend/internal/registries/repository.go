@@ -195,6 +195,39 @@ func (r *Repository) ListRegistriesByProject(ctx context.Context, projectID uuid
 	return registries, nil
 }
 
+func (r *Repository) GetRegistryForProject(ctx context.Context, projectID, registryID uuid.UUID) (Registry, error) {
+	const query = `
+		SELECT id, project_id, name, type, registry_url, username, created_at, updated_at
+		FROM registries
+		WHERE id = $1 AND project_id = $2
+	`
+
+	var registry Registry
+	var username sql.NullString
+	err := r.db.QueryRowContext(ctx, query, registryID, projectID).Scan(
+		&registry.ID,
+		&registry.ProjectID,
+		&registry.Name,
+		&registry.Type,
+		&registry.RegistryURL,
+		&username,
+		&registry.CreatedAt,
+		&registry.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Registry{}, ErrRegistryNotFound
+	}
+	if err != nil {
+		return Registry{}, err
+	}
+
+	if username.Valid {
+		registry.Username = &username.String
+	}
+
+	return registry, nil
+}
+
 func (r *Repository) DeleteRegistry(ctx context.Context, projectID, registryID uuid.UUID) error {
 	const query = `
 		DELETE FROM registries

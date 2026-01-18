@@ -151,13 +151,152 @@
         </div>
       </div>
     </section>
+
+    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h3 class="text-xl font-semibold">Analyses</h3>
+          <p class="text-sm text-slate-400 mt-1">
+            Track image analysis requests and review their status.
+          </p>
+        </div>
+        <button
+          v-if="isOwner"
+          class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+          @click="toggleAnalysisForm"
+        >
+          {{ showAnalysisForm ? 'Close' : 'New analysis' }}
+        </button>
+      </div>
+
+      <p v-if="!isOwner && project" class="text-xs text-slate-500">
+        Only project owners can create new analyses.
+      </p>
+
+      <div
+        v-if="showAnalysisForm && isOwner"
+        class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4"
+      >
+        <h4 class="text-sm font-semibold text-slate-200">Request a new analysis</h4>
+        <form class="grid gap-4 md:grid-cols-2" @submit.prevent="handleCreateAnalysis">
+          <div class="space-y-1 md:col-span-2">
+            <label class="text-xs text-slate-400">Registry</label>
+            <select
+              v-model="analysisForm.registry_id"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            >
+              <option disabled value="">Select a registry</option>
+              <option v-for="registry in registries" :key="registry.id" :value="registry.id">
+                {{ registry.name }} · {{ registry.registry_url }}
+              </option>
+            </select>
+            <p v-if="analysisErrors.registry_id" class="text-xs text-red-400">
+              {{ analysisErrors.registry_id }}
+            </p>
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Image</label>
+            <input
+              v-model="analysisForm.image"
+              type="text"
+              placeholder="repo/name"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+            <p v-if="analysisErrors.image" class="text-xs text-red-400">
+              {{ analysisErrors.image }}
+            </p>
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Tag</label>
+            <input
+              v-model="analysisForm.tag"
+              type="text"
+              placeholder="latest"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+          </div>
+          <div class="md:col-span-2 flex items-center gap-3">
+            <button
+              type="submit"
+              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+              :disabled="creatingAnalysis"
+            >
+              {{ creatingAnalysis ? 'Submitting...' : 'Start analysis' }}
+            </button>
+            <button
+              type="button"
+              class="text-sm text-slate-400 hover:text-slate-200"
+              :disabled="creatingAnalysis"
+              @click="resetAnalysisForm"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+        <p v-if="createAnalysisError" class="text-sm text-red-400">{{ createAnalysisError }}</p>
+      </div>
+
+      <div>
+        <p v-if="analysesLoading" class="text-sm text-slate-400">Loading analyses...</p>
+        <p v-else-if="analysesError" class="text-sm text-red-400">{{ analysesError }}</p>
+        <p v-else-if="analyses.length === 0" class="text-sm text-slate-400">
+          No analyses yet. Kick off your first image inspection.
+        </p>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500">
+              <tr>
+                <th class="py-2 pr-4">Image</th>
+                <th class="py-2 pr-4">Status</th>
+                <th class="py-2 pr-4">Created</th>
+                <th class="py-2">Total size</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+              <tr v-for="analysis in analyses" :key="analysis.id" class="text-slate-200">
+                <td class="py-3 pr-4">
+                  <RouterLink
+                    class="text-indigo-400 hover:text-indigo-300"
+                    :to="`/projects/${project?.id}/analyses/${analysis.id}`"
+                  >
+                    {{ analysis.image }}:{{ analysis.tag }}
+                  </RouterLink>
+                </td>
+                <td class="py-3 pr-4">
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    :class="statusBadgeClass(analysis.status)"
+                  >
+                    {{ analysis.status }}
+                  </span>
+                </td>
+                <td class="py-3 pr-4 text-slate-400">
+                  {{ formatDate(analysis.created_at) }}
+                </td>
+                <td class="py-3 text-slate-400">
+                  {{ analysis.total_size_bytes ? formatBytes(analysis.total_size_bytes) : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { createRegistry, deleteProject, deleteRegistry, getProject, listRegistries } from '../api/client'
+import {
+  createAnalysis,
+  createRegistry,
+  deleteProject,
+  deleteRegistry,
+  getProject,
+  listAnalyses,
+  listRegistries,
+} from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,17 +308,30 @@ const deleteError = ref('')
 const registries = ref([])
 const registriesLoading = ref(false)
 const registriesError = ref('')
+const analyses = ref([])
+const analysesLoading = ref(false)
+const analysesError = ref('')
 const showForm = ref(false)
 const creatingRegistry = ref(false)
 const createRegistryError = ref('')
 const deletingRegistryId = ref(null)
 const fieldErrors = ref({})
+const showAnalysisForm = ref(false)
+const creatingAnalysis = ref(false)
+const createAnalysisError = ref('')
+const analysisErrors = ref({})
 
 const form = ref({
   name: '',
   registry_url: '',
   username: '',
   password: '',
+})
+
+const analysisForm = ref({
+  registry_id: '',
+  image: '',
+  tag: 'latest',
 })
 
 const isOwner = computed(() => project.value?.role === 'owner')
@@ -190,6 +342,7 @@ const fetchProject = async () => {
   try {
     project.value = await getProject(route.params.id)
     await fetchRegistries()
+    await fetchAnalyses()
   } catch (err) {
     error.value = err.message
   } finally {
@@ -211,6 +364,18 @@ const fetchRegistries = async () => {
   }
 }
 
+const fetchAnalyses = async () => {
+  analysesLoading.value = true
+  analysesError.value = ''
+  try {
+    analyses.value = await listAnalyses(route.params.id)
+  } catch (err) {
+    analysesError.value = err.message
+  } finally {
+    analysesLoading.value = false
+  }
+}
+
 const toggleForm = () => {
   showForm.value = !showForm.value
   if (!showForm.value) {
@@ -227,6 +392,23 @@ const resetForm = () => {
   }
   fieldErrors.value = {}
   createRegistryError.value = ''
+}
+
+const toggleAnalysisForm = () => {
+  showAnalysisForm.value = !showAnalysisForm.value
+  if (!showAnalysisForm.value) {
+    resetAnalysisForm()
+  }
+}
+
+const resetAnalysisForm = () => {
+  analysisForm.value = {
+    registry_id: '',
+    image: '',
+    tag: 'latest',
+  }
+  analysisErrors.value = {}
+  createAnalysisError.value = ''
 }
 
 const handleCreateRegistry = async () => {
@@ -264,6 +446,38 @@ const handleCreateRegistry = async () => {
   }
 }
 
+const handleCreateAnalysis = async () => {
+  analysisErrors.value = {}
+  createAnalysisError.value = ''
+
+  if (!analysisForm.value.registry_id) {
+    analysisErrors.value.registry_id = 'Registry is required.'
+  }
+  if (!analysisForm.value.image.trim()) {
+    analysisErrors.value.image = 'Image is required.'
+  }
+
+  if (Object.keys(analysisErrors.value).length > 0) {
+    return
+  }
+
+  creatingAnalysis.value = true
+  try {
+    await createAnalysis(route.params.id, {
+      registry_id: analysisForm.value.registry_id,
+      image: analysisForm.value.image,
+      tag: analysisForm.value.tag,
+    })
+    showAnalysisForm.value = false
+    resetAnalysisForm()
+    await fetchAnalyses()
+  } catch (err) {
+    createAnalysisError.value = err.message
+  } finally {
+    creatingAnalysis.value = false
+  }
+}
+
 const handleDeleteRegistry = async (registryId) => {
   deletingRegistryId.value = registryId
   try {
@@ -273,6 +487,36 @@ const handleDeleteRegistry = async (registryId) => {
     registriesError.value = err.message
   } finally {
     deletingRegistryId.value = null
+  }
+}
+
+const formatDate = (value) => {
+  if (!value) return 'just now'
+  return new Date(value).toLocaleString()
+}
+
+const formatBytes = (value) => {
+  if (!value && value !== 0) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = Number(value)
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
+
+const statusBadgeClass = (status) => {
+  switch (status) {
+    case 'completed':
+      return 'bg-emerald-500/20 text-emerald-200'
+    case 'running':
+      return 'bg-sky-500/20 text-sky-200'
+    case 'failed':
+      return 'bg-rose-500/20 text-rose-200'
+    default:
+      return 'bg-amber-500/20 text-amber-200'
   }
 }
 

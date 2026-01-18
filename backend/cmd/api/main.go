@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dimas1q/dockslim/backend/internal/analyses"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/config"
 	"github.com/dimas1q/dockslim/backend/internal/db"
@@ -51,6 +52,7 @@ func main() {
 	authRepo := auth.NewRepository(database)
 	projectRepo := projects.NewRepository(database)
 	registryRepo := registries.NewRepository(database)
+	analysisRepo := analyses.NewRepository(database)
 	tokenManager, err := auth.NewTokenManager(ctx, authRepo, auth.DefaultAccessTokenTTL)
 	if err != nil {
 		log.Fatalf("failed to initialize token manager: %v", err)
@@ -62,6 +64,7 @@ func main() {
 		log.Fatalf("failed to load registry encryption key: %v", err)
 	}
 	registryService := registries.NewService(registryRepo, projectRepo, activeKey)
+	analysisService := analyses.NewService(analysisRepo, projectRepo, registryRepo)
 	middleware := auth.NewMiddleware(tokenManager, authRepo)
 	cookieSameSite, err := parseSameSite(cfg.CookieSameSite)
 	if err != nil {
@@ -78,12 +81,14 @@ func main() {
 	})
 	projectsHandler := httpapi.NewProjectsHandler(projectService)
 	registriesHandler := httpapi.NewRegistriesHandler(registryService)
+	analysesHandler := httpapi.NewAnalysesHandler(analysisService)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		AuthHandler:       authHandler,
 		AuthMiddleware:    middleware,
 		ProjectsHandler:   projectsHandler,
 		RegistriesHandler: registriesHandler,
+		AnalysesHandler:   analysesHandler,
 		AllowedOrigins:    cfg.CORSAllowedOrigins,
 	})
 

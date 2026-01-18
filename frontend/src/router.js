@@ -3,6 +3,7 @@ import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
 import ProjectsView from './views/ProjectsView.vue'
 import ProjectDetailView from './views/ProjectDetailView.vue'
+import AnalysisDetailView from './views/AnalysisDetailView.vue'
 import { loadCurrentUser, useAuth } from './stores/auth'
 
 const routes = [
@@ -17,6 +18,11 @@ const routes = [
   {
     path: '/projects/:id',
     component: ProjectDetailView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/projects/:id/analyses/:analysisId',
+    component: AnalysisDetailView,
     meta: { requiresAuth: true },
   },
 ]
