@@ -37,8 +37,20 @@
           </div>
         </div>
 
-        <div class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6">
-          <p class="text-sm text-slate-400">Layer breakdown coming soon.</p>
+        <div class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-semibold">Result</p>
+            <span v-if="polling" class="text-xs text-slate-400">Updating...</span>
+          </div>
+          <p v-if="!analysis?.result_json" class="text-sm text-slate-400">
+            Layer breakdown coming soon.
+          </p>
+          <pre
+            v-else
+            class="whitespace-pre-wrap break-words rounded-lg bg-slate-950/70 p-4 text-xs text-slate-200"
+          >
+{{ formattedResult }}
+          </pre>
         </div>
       </div>
     </div>
@@ -46,7 +58,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { getAnalysis } from '../api/client'
 
@@ -57,20 +69,63 @@ const analysisId = route.params.analysisId
 const analysis = ref(null)
 const loading = ref(true)
 const error = ref('')
+const polling = ref(false)
+let pollTimer = null
 
-const fetchAnalysis = async () => {
-  loading.value = true
+const fetchAnalysis = async ({ silent = false } = {}) => {
+  if (!silent) {
+    loading.value = true
+  }
   error.value = ''
   try {
     analysis.value = await getAnalysis(projectId, analysisId)
   } catch (err) {
     error.value = err.message
   } finally {
-    loading.value = false
+    if (!silent) {
+      loading.value = false
+    }
   }
 }
 
 onMounted(fetchAnalysis)
+onBeforeUnmount(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+  }
+})
+
+const isActive = computed(() => ['queued', 'running'].includes(analysis.value?.status))
+
+const startPolling = () => {
+  if (pollTimer) {
+    return
+  }
+  polling.value = true
+  pollTimer = setInterval(() => {
+    fetchAnalysis({ silent: true })
+  }, 3000)
+}
+
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  polling.value = false
+}
+
+watch(
+  isActive,
+  (active) => {
+    if (active) {
+      startPolling()
+      return
+    }
+    stopPolling()
+  },
+  { immediate: true },
+)
 
 const formatDate = (value) => {
   if (!value) return 'just now'
@@ -99,6 +154,17 @@ const statusBadgeClass = computed(() => {
       return 'bg-rose-500/20 text-rose-200'
     default:
       return 'bg-amber-500/20 text-amber-200'
+  }
+})
+
+const formattedResult = computed(() => {
+  if (!analysis.value?.result_json) {
+    return ''
+  }
+  try {
+    return JSON.stringify(analysis.value.result_json, null, 2)
+  } catch (err) {
+    return String(analysis.value.result_json)
   }
 })
 </script>

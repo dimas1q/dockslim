@@ -27,15 +27,18 @@ type analysisRequest struct {
 }
 
 type analysisResponse struct {
-	ID             string    `json:"id"`
-	ProjectID      string    `json:"project_id"`
-	RegistryID     *string   `json:"registry_id"`
-	Image          string    `json:"image"`
-	Tag            string    `json:"tag"`
-	Status         string    `json:"status"`
-	TotalSizeBytes *int64    `json:"total_size_bytes"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             string          `json:"id"`
+	ProjectID      string          `json:"project_id"`
+	RegistryID     *string         `json:"registry_id"`
+	Image          string          `json:"image"`
+	Tag            string          `json:"tag"`
+	Status         string          `json:"status"`
+	TotalSizeBytes *int64          `json:"total_size_bytes"`
+	ResultJSON     json.RawMessage `json:"result_json,omitempty"`
+	StartedAt      *time.Time      `json:"started_at,omitempty"`
+	FinishedAt     *time.Time      `json:"finished_at,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 func (h *AnalysesHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +172,9 @@ func toAnalysisResponse(analysis analyses.ImageAnalysis) analysisResponse {
 		Tag:            analysis.Tag,
 		Status:         analysis.Status,
 		TotalSizeBytes: analysis.TotalSizeBytes,
+		ResultJSON:     analysis.ResultJSON,
+		StartedAt:      analysis.StartedAt,
+		FinishedAt:     analysis.FinishedAt,
 		CreatedAt:      analysis.CreatedAt,
 		UpdatedAt:      analysis.UpdatedAt,
 	}

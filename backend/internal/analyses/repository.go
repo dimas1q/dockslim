@@ -31,7 +31,11 @@ func (r *Repository) CreateAnalysis(ctx context.Context, params CreateAnalysisPa
 	const query = `
 		INSERT INTO image_analyses (project_id, registry_id, image, tag, status, total_size_bytes)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, project_id, registry_id, image, tag, status, total_size_bytes, created_at, updated_at
+		RETURNING id, project_id, registry_id, image, tag, status, total_size_bytes, result_json, started_at, finished_at, created_at, updated_at
+	`
+	const jobQuery = `
+		INSERT INTO analysis_jobs (analysis_id, status)
+		VALUES ($1, $2)
 	`
 
 	var registryID interface{}
@@ -44,10 +48,23 @@ func (r *Repository) CreateAnalysis(ctx context.Context, params CreateAnalysisPa
 		totalSize = sql.NullInt64{Int64: *params.TotalSizeBytes, Valid: true}
 	}
 
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ImageAnalysis{}, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
 	var analysis ImageAnalysis
 	var registryIDOut sql.NullString
 	var totalSizeOut sql.NullInt64
-	err := r.db.QueryRowContext(
+	var resultJSON sql.NullString
+	var startedAt sql.NullTime
+	var finishedAt sql.NullTime
+	err = tx.QueryRowContext(
 		ctx,
 		query,
 		params.ProjectID,
@@ -64,6 +81,9 @@ func (r *Repository) CreateAnalysis(ctx context.Context, params CreateAnalysisPa
 		&analysis.Tag,
 		&analysis.Status,
 		&totalSizeOut,
+		&resultJSON,
+		&startedAt,
+		&finishedAt,
 		&analysis.CreatedAt,
 		&analysis.UpdatedAt,
 	)
@@ -82,13 +102,32 @@ func (r *Repository) CreateAnalysis(ctx context.Context, params CreateAnalysisPa
 		value := totalSizeOut.Int64
 		analysis.TotalSizeBytes = &value
 	}
+	if resultJSON.Valid {
+		analysis.ResultJSON = []byte(resultJSON.String)
+	}
+	if startedAt.Valid {
+		value := startedAt.Time
+		analysis.StartedAt = &value
+	}
+	if finishedAt.Valid {
+		value := finishedAt.Time
+		analysis.FinishedAt = &value
+	}
+
+	if _, err = tx.ExecContext(ctx, jobQuery, analysis.ID, params.Status); err != nil {
+		return ImageAnalysis{}, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return ImageAnalysis{}, err
+	}
 
 	return analysis, nil
 }
 
 func (r *Repository) ListAnalysesByProject(ctx context.Context, projectID uuid.UUID) ([]ImageAnalysis, error) {
 	const query = `
-		SELECT id, project_id, registry_id, image, tag, status, total_size_bytes, created_at, updated_at
+		SELECT id, project_id, registry_id, image, tag, status, total_size_bytes, result_json, started_at, finished_at, created_at, updated_at
 		FROM image_analyses
 		WHERE project_id = $1
 		ORDER BY created_at DESC
@@ -105,6 +144,9 @@ func (r *Repository) ListAnalysesByProject(ctx context.Context, projectID uuid.U
 		var analysis ImageAnalysis
 		var registryID sql.NullString
 		var totalSize sql.NullInt64
+		var resultJSON sql.NullString
+		var startedAt sql.NullTime
+		var finishedAt sql.NullTime
 		if err := rows.Scan(
 			&analysis.ID,
 			&analysis.ProjectID,
@@ -113,6 +155,9 @@ func (r *Repository) ListAnalysesByProject(ctx context.Context, projectID uuid.U
 			&analysis.Tag,
 			&analysis.Status,
 			&totalSize,
+			&resultJSON,
+			&startedAt,
+			&finishedAt,
 			&analysis.CreatedAt,
 			&analysis.UpdatedAt,
 		); err != nil {
@@ -129,6 +174,17 @@ func (r *Repository) ListAnalysesByProject(ctx context.Context, projectID uuid.U
 			value := totalSize.Int64
 			analysis.TotalSizeBytes = &value
 		}
+		if resultJSON.Valid {
+			analysis.ResultJSON = []byte(resultJSON.String)
+		}
+		if startedAt.Valid {
+			value := startedAt.Time
+			analysis.StartedAt = &value
+		}
+		if finishedAt.Valid {
+			value := finishedAt.Time
+			analysis.FinishedAt = &value
+		}
 		analyses = append(analyses, analysis)
 	}
 
@@ -141,7 +197,7 @@ func (r *Repository) ListAnalysesByProject(ctx context.Context, projectID uuid.U
 
 func (r *Repository) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (ImageAnalysis, error) {
 	const query = `
-		SELECT id, project_id, registry_id, image, tag, status, total_size_bytes, created_at, updated_at
+		SELECT id, project_id, registry_id, image, tag, status, total_size_bytes, result_json, started_at, finished_at, created_at, updated_at
 		FROM image_analyses
 		WHERE id = $1 AND project_id = $2
 	`
@@ -149,6 +205,9 @@ func (r *Repository) GetAnalysisForProject(ctx context.Context, projectID, analy
 	var analysis ImageAnalysis
 	var registryID sql.NullString
 	var totalSize sql.NullInt64
+	var resultJSON sql.NullString
+	var startedAt sql.NullTime
+	var finishedAt sql.NullTime
 	err := r.db.QueryRowContext(ctx, query, analysisID, projectID).Scan(
 		&analysis.ID,
 		&analysis.ProjectID,
@@ -157,6 +216,9 @@ func (r *Repository) GetAnalysisForProject(ctx context.Context, projectID, analy
 		&analysis.Tag,
 		&analysis.Status,
 		&totalSize,
+		&resultJSON,
+		&startedAt,
+		&finishedAt,
 		&analysis.CreatedAt,
 		&analysis.UpdatedAt,
 	)
@@ -177,6 +239,17 @@ func (r *Repository) GetAnalysisForProject(ctx context.Context, projectID, analy
 	if totalSize.Valid {
 		value := totalSize.Int64
 		analysis.TotalSizeBytes = &value
+	}
+	if resultJSON.Valid {
+		analysis.ResultJSON = []byte(resultJSON.String)
+	}
+	if startedAt.Valid {
+		value := startedAt.Time
+		analysis.StartedAt = &value
+	}
+	if finishedAt.Valid {
+		value := finishedAt.Time
+		analysis.FinishedAt = &value
 	}
 
 	return analysis, nil

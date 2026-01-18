@@ -45,8 +45,9 @@ services:
     command: ["go", "run", "./analyzer/cmd/analyzer"]
     volumes:
       - .:/app
-    env_file:
-      - ./analyzer/.env
+    environment:
+      ANALYZER_POSTGRES_DSN: postgres://dockslim:dockslim@postgres:5432/dockslim?sslmode=disable
+      ANALYZER_REDIS_ADDR: redis:6379
     depends_on:
       - postgres
       - redis

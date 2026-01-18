@@ -1,0 +1,341 @@
+package worker
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/dimas1q/dockslim/analyzer/internal/registry"
+	"github.com/google/uuid"
+)
+
+const (
+	jobStatusQueued  = "queued"
+	jobStatusRunning = "running"
+	jobStatusDone    = "done"
+	jobStatusFailed  = "failed"
+
+	analysisStatusRunning   = "running"
+	analysisStatusCompleted = "completed"
+	analysisStatusFailed    = "failed"
+)
+
+type Worker struct {
+	db           *sql.DB
+	client       *registry.Client
+	workerID     string
+	lockTimeout  time.Duration
+	pollInterval time.Duration
+}
+
+type Job struct {
+	ID         uuid.UUID
+	AnalysisID uuid.UUID
+}
+
+type AnalysisInput struct {
+	ID          uuid.UUID
+	Image       string
+	Tag         string
+	RegistryURL string
+	Username    string
+	PasswordEnc []byte
+}
+
+func New(db *sql.DB) *Worker {
+	return &Worker{
+		db:           db,
+		client:       registry.NewClient(),
+		workerID:     uuid.NewString(),
+		lockTimeout:  10 * time.Minute,
+		pollInterval: 2 * time.Second,
+	}
+}
+
+func (w *Worker) Run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		job, err := w.claimJob(ctx)
+		if err != nil {
+			return err
+		}
+		if job == nil {
+			time.Sleep(w.pollInterval)
+			continue
+		}
+
+		if err := w.processJob(ctx, *job); err != nil {
+			log.Printf("analysis job %s failed: %v", job.ID, err)
+		}
+	}
+}
+
+func (w *Worker) claimJob(ctx context.Context) (*Job, error) {
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	staleBefore := time.Now().Add(-w.lockTimeout)
+	const selectQuery = `
+		SELECT id, analysis_id
+		FROM analysis_jobs
+		WHERE (
+			status = $1
+			OR (status = $2 AND (locked_at IS NULL OR locked_at < $3))
+		)
+		ORDER BY created_at
+		FOR UPDATE SKIP LOCKED
+		LIMIT 1
+	`
+
+	var job Job
+	err = tx.QueryRowContext(ctx, selectQuery, jobStatusQueued, jobStatusRunning, staleBefore).Scan(&job.ID, &job.AnalysisID)
+	if errors.Is(err, sql.ErrNoRows) {
+		_ = tx.Rollback()
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	const updateJobQuery = `
+		UPDATE analysis_jobs
+		SET status = $1,
+			attempts = attempts + 1,
+			locked_by = $2,
+			locked_at = NOW(),
+			updated_at = NOW()
+		WHERE id = $3
+	`
+	if _, err = tx.ExecContext(ctx, updateJobQuery, jobStatusRunning, w.workerID, job.ID); err != nil {
+		return nil, err
+	}
+
+	const updateAnalysisQuery = `
+		UPDATE image_analyses
+		SET status = $1,
+			started_at = COALESCE(started_at, NOW()),
+			updated_at = NOW()
+		WHERE id = $2
+	`
+	if _, err = tx.ExecContext(ctx, updateAnalysisQuery, analysisStatusRunning, job.AnalysisID); err != nil {
+		return nil, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return &job, nil
+}
+
+func (w *Worker) processJob(ctx context.Context, job Job) error {
+	input, err := w.fetchAnalysisInput(ctx, job.AnalysisID)
+	if err != nil {
+		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
+		return err
+	}
+
+	password, err := w.decryptPassword(ctx, input.PasswordEnc)
+	if err != nil {
+		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
+		return err
+	}
+
+	if err := w.client.Ping(ctx, input.RegistryURL, input.Username, password); err != nil {
+		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
+		return err
+	}
+
+	manifestSummary, err := w.client.FetchManifest(ctx, input.RegistryURL, input.Image, input.Tag, input.Username, password)
+	if err != nil {
+		result := map[string]any{
+			"note":    "analysis stub",
+			"image":   input.Image,
+			"tag":     input.Tag,
+			"warning": fmt.Sprintf("manifest fetch failed: %v", err),
+		}
+		resultJSON, marshalErr := json.Marshal(result)
+		if marshalErr != nil {
+			_ = w.failJob(ctx, job.ID, job.AnalysisID, marshalErr)
+			return marshalErr
+		}
+		if err := w.completeJob(ctx, job.ID, job.AnalysisID, resultJSON, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	result := map[string]any{
+		"note":        "analysis complete",
+		"image":       input.Image,
+		"tag":         input.Tag,
+		"registry":    input.RegistryURL,
+		"layer_count": manifestSummary.LayerCount,
+	}
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
+		return err
+	}
+
+	totalSize := manifestSummary.TotalSize
+	if err := w.completeJob(ctx, job.ID, job.AnalysisID, resultJSON, &totalSize); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (w *Worker) fetchAnalysisInput(ctx context.Context, analysisID uuid.UUID) (AnalysisInput, error) {
+	const query = `
+		SELECT ia.id, ia.image, ia.tag, r.registry_url, r.username, r.password_enc
+		FROM image_analyses ia
+		JOIN registries r ON ia.registry_id = r.id
+		WHERE ia.id = $1
+	`
+
+	var input AnalysisInput
+	var username sql.NullString
+	var passwordEnc []byte
+	err := w.db.QueryRowContext(ctx, query, analysisID).Scan(
+		&input.ID,
+		&input.Image,
+		&input.Tag,
+		&input.RegistryURL,
+		&username,
+		&passwordEnc,
+	)
+	if err != nil {
+		return AnalysisInput{}, err
+	}
+
+	if username.Valid {
+		input.Username = username.String
+	}
+	if len(passwordEnc) > 0 {
+		input.PasswordEnc = passwordEnc
+	}
+
+	return input, nil
+}
+
+func (w *Worker) decryptPassword(ctx context.Context, encrypted []byte) (string, error) {
+	if len(encrypted) == 0 {
+		return "", nil
+	}
+
+	const query = `
+		SELECT key_material
+		FROM encryption_keys
+		WHERE is_active = TRUE
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	var keyMaterial []byte
+	if err := w.db.QueryRowContext(ctx, query).Scan(&keyMaterial); err != nil {
+		return "", err
+	}
+
+	return registry.DecryptSecret(keyMaterial, encrypted)
+}
+
+func (w *Worker) completeJob(ctx context.Context, jobID, analysisID uuid.UUID, resultJSON []byte, totalSize *int64) error {
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var size sql.NullInt64
+	if totalSize != nil {
+		size = sql.NullInt64{Int64: *totalSize, Valid: true}
+	}
+
+	const updateAnalysisQuery = `
+		UPDATE image_analyses
+		SET status = $1,
+			total_size_bytes = $2,
+			result_json = $3,
+			finished_at = NOW(),
+			updated_at = NOW()
+		WHERE id = $4
+	`
+	if _, err = tx.ExecContext(ctx, updateAnalysisQuery, analysisStatusCompleted, size, resultJSON, analysisID); err != nil {
+		return err
+	}
+
+	const updateJobQuery = `
+		UPDATE analysis_jobs
+		SET status = $1,
+			last_error = NULL,
+			updated_at = NOW()
+		WHERE id = $2
+	`
+	if _, err = tx.ExecContext(ctx, updateJobQuery, jobStatusDone, jobID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (w *Worker) failJob(ctx context.Context, jobID, analysisID uuid.UUID, failure error) error {
+	result := map[string]any{
+		"error": failure.Error(),
+	}
+	resultJSON, _ := json.Marshal(result)
+
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	const updateAnalysisQuery = `
+		UPDATE image_analyses
+		SET status = $1,
+			result_json = $2,
+			finished_at = NOW(),
+			updated_at = NOW()
+		WHERE id = $3
+	`
+	if _, err = tx.ExecContext(ctx, updateAnalysisQuery, analysisStatusFailed, resultJSON, analysisID); err != nil {
+		return err
+	}
+
+	const updateJobQuery = `
+		UPDATE analysis_jobs
+		SET status = $1,
+			last_error = $2,
+			updated_at = NOW()
+		WHERE id = $3
+	`
+	if _, err = tx.ExecContext(ctx, updateJobQuery, jobStatusFailed, failure.Error(), jobID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
