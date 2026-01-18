@@ -155,7 +155,10 @@
     <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 class="text-xl font-semibold">Analyses</h3>
+          <div class="flex items-center gap-3">
+            <h3 class="text-xl font-semibold">Analyses</h3>
+            <span v-if="polling" class="text-xs text-slate-400">Updating...</span>
+          </div>
           <p class="text-sm text-slate-400 mt-1">
             Track image analysis requests and review their status.
           </p>
@@ -254,6 +257,7 @@
                 <th class="py-2 pr-4">Status</th>
                 <th class="py-2 pr-4">Created</th>
                 <th class="py-2">Total size</th>
+                <th class="py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800">
@@ -280,6 +284,16 @@
                 <td class="py-3 text-slate-400">
                   {{ analysis.total_size_bytes ? formatBytes(analysis.total_size_bytes) : '—' }}
                 </td>
+                <td class="py-3 text-right">
+                  <button
+                    v-if="isOwner"
+                    class="text-xs text-red-300 hover:text-red-200 disabled:opacity-60"
+                    :disabled="deletingAnalysisId === analysis.id"
+                    @click="handleDeleteAnalysis(analysis)"
+                  >
+                    {{ deletingAnalysisId === analysis.id ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -290,11 +304,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   createAnalysis,
   createRegistry,
+  deleteAnalysis,
   deleteProject,
   deleteRegistry,
   getProject,
@@ -315,15 +330,18 @@ const registriesError = ref('')
 const analyses = ref([])
 const analysesLoading = ref(false)
 const analysesError = ref('')
+const polling = ref(false)
 const showForm = ref(false)
 const creatingRegistry = ref(false)
 const createRegistryError = ref('')
 const deletingRegistryId = ref(null)
+const deletingAnalysisId = ref(null)
 const fieldErrors = ref({})
 const showAnalysisForm = ref(false)
 const creatingAnalysis = ref(false)
 const createAnalysisError = ref('')
 const analysisErrors = ref({})
+let pollTimer = null
 
 const form = ref({
   name: '',
@@ -339,6 +357,9 @@ const analysisForm = ref({
 })
 
 const isOwner = computed(() => project.value?.role === 'owner')
+const hasActiveAnalyses = computed(() =>
+  analyses.value.some((analysis) => ['queued', 'running'].includes(analysis.status)),
+)
 
 const fetchProject = async () => {
   loading.value = true
@@ -355,6 +376,11 @@ const fetchProject = async () => {
 }
 
 onMounted(fetchProject)
+onBeforeUnmount(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+  }
+})
 
 const fetchRegistries = async () => {
   registriesLoading.value = true
@@ -368,17 +394,51 @@ const fetchRegistries = async () => {
   }
 }
 
-const fetchAnalyses = async () => {
-  analysesLoading.value = true
+const fetchAnalyses = async ({ silent = false } = {}) => {
+  if (!silent) {
+    analysesLoading.value = true
+  }
   analysesError.value = ''
   try {
     analyses.value = await listAnalyses(route.params.id)
   } catch (err) {
     analysesError.value = err.message
   } finally {
-    analysesLoading.value = false
+    if (!silent) {
+      analysesLoading.value = false
+    }
   }
 }
+
+const startPolling = () => {
+  if (pollTimer) {
+    return
+  }
+  polling.value = true
+  pollTimer = setInterval(() => {
+    fetchAnalyses({ silent: true })
+  }, 3000)
+}
+
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  polling.value = false
+}
+
+watch(
+  hasActiveAnalyses,
+  (active) => {
+    if (active) {
+      startPolling()
+      return
+    }
+    stopPolling()
+  },
+  { immediate: true },
+)
 
 const toggleForm = () => {
   showForm.value = !showForm.value
@@ -491,6 +551,26 @@ const handleDeleteRegistry = async (registryId) => {
     registriesError.value = err.message
   } finally {
     deletingRegistryId.value = null
+  }
+}
+
+const handleDeleteAnalysis = async (analysis) => {
+  if (!analysis?.id) {
+    return
+  }
+  const confirmed = window.confirm('Delete this analysis? This cannot be undone.')
+  if (!confirmed) {
+    return
+  }
+
+  deletingAnalysisId.value = analysis.id
+  try {
+    await deleteAnalysis(route.params.id, analysis.id)
+    await fetchAnalyses()
+  } catch (err) {
+    analysesError.value = err.message
+  } finally {
+    deletingAnalysisId.value = null
   }
 }
 

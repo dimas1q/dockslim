@@ -1,6 +1,7 @@
 package analyses
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,9 @@ type ImageAnalysis struct {
 	Tag            string
 	Status         string
 	TotalSizeBytes *int64
+	ResultJSON     json.RawMessage
+	StartedAt      *time.Time
+	FinishedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

@@ -52,6 +52,8 @@ func NewRouter(deps Dependencies) http.Handler {
 					r.Get("/", deps.AnalysesHandler.List)
 					r.Post("/", deps.AnalysesHandler.Create)
 					r.Get("/{analysisId}", deps.AnalysesHandler.Get)
+					r.Delete("/{analysisId}", deps.AnalysesHandler.Delete)
+					r.Post("/{analysisId}/rerun", deps.AnalysesHandler.Rerun)
 				})
 			})
 		})

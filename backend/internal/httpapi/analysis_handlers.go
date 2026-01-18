@@ -27,15 +27,18 @@ type analysisRequest struct {
 }
 
 type analysisResponse struct {
-	ID             string    `json:"id"`
-	ProjectID      string    `json:"project_id"`
-	RegistryID     *string   `json:"registry_id"`
-	Image          string    `json:"image"`
-	Tag            string    `json:"tag"`
-	Status         string    `json:"status"`
-	TotalSizeBytes *int64    `json:"total_size_bytes"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             string          `json:"id"`
+	ProjectID      string          `json:"project_id"`
+	RegistryID     *string         `json:"registry_id"`
+	Image          string          `json:"image"`
+	Tag            string          `json:"tag"`
+	Status         string          `json:"status"`
+	TotalSizeBytes *int64          `json:"total_size_bytes"`
+	ResultJSON     json.RawMessage `json:"result_json,omitempty"`
+	StartedAt      *time.Time      `json:"started_at,omitempty"`
+	FinishedAt     *time.Time      `json:"finished_at,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 func (h *AnalysesHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +109,8 @@ func (h *AnalysesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, analyses.ErrNotOwner):
 			writeError(w, http.StatusForbidden, "forbidden")
 		case errors.Is(err, analyses.ErrInvalidImage),
-			errors.Is(err, analyses.ErrInvalidRegistry):
+			errors.Is(err, analyses.ErrInvalidRegistry),
+			errors.Is(err, analyses.ErrRegistryMismatch):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, registries.ErrRegistryNotFound):
 			writeError(w, http.StatusNotFound, "registry not found")
@@ -154,6 +158,80 @@ func (h *AnalysesHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toAnalysisResponse(analysis))
 }
 
+func (h *AnalysesHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID, err := parseUUIDParam(r, "projectId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	analysisID, err := parseUUIDParam(r, "analysisId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid analysis id")
+		return
+	}
+
+	if err := h.service.DeleteAnalysis(r.Context(), user.ID, projectID, analysisID); err != nil {
+		switch {
+		case errors.Is(err, analyses.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, analyses.ErrNotOwner):
+			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, analyses.ErrAnalysisNotFound):
+			writeError(w, http.StatusNotFound, "analysis not found")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to delete analysis")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AnalysesHandler) Rerun(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID, err := parseUUIDParam(r, "projectId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	analysisID, err := parseUUIDParam(r, "analysisId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid analysis id")
+		return
+	}
+
+	if err := h.service.RerunAnalysis(r.Context(), user.ID, projectID, analysisID); err != nil {
+		switch {
+		case errors.Is(err, analyses.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, analyses.ErrNotOwner):
+			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, analyses.ErrAnalysisNotFound):
+			writeError(w, http.StatusNotFound, "analysis not found")
+		case errors.Is(err, analyses.ErrAnalysisRunning):
+			writeError(w, http.StatusConflict, "analysis is running")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to rerun analysis")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func toAnalysisResponse(analysis analyses.ImageAnalysis) analysisResponse {
 	var registryID *string
 	if analysis.RegistryID != nil {
@@ -169,6 +247,9 @@ func toAnalysisResponse(analysis analyses.ImageAnalysis) analysisResponse {
 		Tag:            analysis.Tag,
 		Status:         analysis.Status,
 		TotalSizeBytes: analysis.TotalSizeBytes,
+		ResultJSON:     analysis.ResultJSON,
+		StartedAt:      analysis.StartedAt,
+		FinishedAt:     analysis.FinishedAt,
 		CreatedAt:      analysis.CreatedAt,
 		UpdatedAt:      analysis.UpdatedAt,
 	}
