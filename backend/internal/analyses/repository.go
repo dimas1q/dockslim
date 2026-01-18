@@ -34,9 +34,9 @@ func (r *Repository) CreateAnalysis(ctx context.Context, params CreateAnalysisPa
 		RETURNING id, project_id, registry_id, image, tag, status, total_size_bytes, created_at, updated_at
 	`
 
-	var registryID sql.NullString
+	var registryID interface{}
 	if params.RegistryID != nil {
-		registryID = sql.NullString{String: params.RegistryID.String(), Valid: true}
+		registryID = *params.RegistryID
 	}
 
 	var totalSize sql.NullInt64

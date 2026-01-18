@@ -163,6 +163,7 @@
         <button
           v-if="isOwner"
           class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+          :disabled="registries.length === 0"
           @click="toggleAnalysisForm"
         >
           {{ showAnalysisForm ? 'Close' : 'New analysis' }}
@@ -171,6 +172,9 @@
 
       <p v-if="!isOwner && project" class="text-xs text-slate-500">
         Only project owners can create new analyses.
+      </p>
+      <p v-if="isOwner && registries.length === 0" class="text-xs text-slate-500">
+        Create a registry first to run image analyses.
       </p>
 
       <div
