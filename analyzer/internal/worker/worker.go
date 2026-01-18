@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/dimas1q/dockslim/analyzer/internal/registry"
@@ -150,6 +152,13 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
 		return err
 	}
+
+	normalizedImage, err := normalizeImageReference(input.Image, input.RegistryURL)
+	if err != nil {
+		_ = w.failJob(ctx, job.ID, job.AnalysisID, err)
+		return err
+	}
+	input.Image = normalizedImage
 
 	password, err := w.decryptPassword(ctx, input.PasswordEnc)
 	if err != nil {
@@ -296,6 +305,53 @@ func (w *Worker) completeJob(ctx context.Context, jobID, analysisID uuid.UUID, r
 	}
 
 	return tx.Commit()
+}
+
+func normalizeImageReference(image, registryURL string) (string, error) {
+	if strings.Contains(image, "://") {
+		return "", fmt.Errorf("invalid image reference")
+	}
+
+	parts := strings.SplitN(image, "/", 2)
+	if len(parts) < 2 {
+		return image, nil
+	}
+
+	hostPart := parts[0]
+	if !looksLikeRegistryHost(hostPart) {
+		return image, nil
+	}
+
+	registryHost, err := extractRegistryHost(registryURL)
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.EqualFold(hostPart, registryHost) {
+		return "", fmt.Errorf("image registry does not match selected registry")
+	}
+
+	if strings.TrimSpace(parts[1]) == "" {
+		return "", fmt.Errorf("invalid image reference")
+	}
+
+	return parts[1], nil
+}
+
+func looksLikeRegistryHost(value string) bool {
+	lower := strings.ToLower(value)
+	return strings.Contains(lower, ".") || strings.Contains(lower, ":") || lower == "localhost"
+}
+
+func extractRegistryHost(registryURL string) (string, error) {
+	parsed, err := url.Parse(registryURL)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("invalid registry url")
+	}
+	return parsed.Host, nil
 }
 
 func (w *Worker) failJob(ctx context.Context, jobID, analysisID uuid.UUID, failure error) error {

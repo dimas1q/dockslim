@@ -109,7 +109,8 @@ func (h *AnalysesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, analyses.ErrNotOwner):
 			writeError(w, http.StatusForbidden, "forbidden")
 		case errors.Is(err, analyses.ErrInvalidImage),
-			errors.Is(err, analyses.ErrInvalidRegistry):
+			errors.Is(err, analyses.ErrInvalidRegistry),
+			errors.Is(err, analyses.ErrRegistryMismatch):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, registries.ErrRegistryNotFound):
 			writeError(w, http.StatusNotFound, "registry not found")
@@ -155,6 +156,42 @@ func (h *AnalysesHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, toAnalysisResponse(analysis))
+}
+
+func (h *AnalysesHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID, err := parseUUIDParam(r, "projectId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	analysisID, err := parseUUIDParam(r, "analysisId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid analysis id")
+		return
+	}
+
+	if err := h.service.DeleteAnalysis(r.Context(), user.ID, projectID, analysisID); err != nil {
+		switch {
+		case errors.Is(err, analyses.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, analyses.ErrNotOwner):
+			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, analyses.ErrAnalysisNotFound):
+			writeError(w, http.StatusNotFound, "analysis not found")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to delete analysis")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func toAnalysisResponse(analysis analyses.ImageAnalysis) analysisResponse {

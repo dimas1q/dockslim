@@ -11,16 +11,18 @@ import (
 )
 
 var (
-	ErrProjectNotFound = errors.New("project not found")
-	ErrNotOwner        = errors.New("user is not project owner")
-	ErrInvalidImage    = errors.New("invalid image")
-	ErrInvalidRegistry = errors.New("invalid registry")
+	ErrProjectNotFound  = errors.New("project not found")
+	ErrNotOwner         = errors.New("user is not project owner")
+	ErrInvalidImage     = errors.New("invalid image")
+	ErrInvalidRegistry  = errors.New("invalid registry")
+	ErrRegistryMismatch = errors.New("image registry does not match selected registry")
 )
 
 type RepositoryStore interface {
 	ListAnalysesByProject(ctx context.Context, projectID uuid.UUID) ([]ImageAnalysis, error)
 	GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (ImageAnalysis, error)
 	CreateAnalysis(ctx context.Context, params CreateAnalysisParams) (ImageAnalysis, error)
+	DeleteAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error
 }
 
 type MembershipStore interface {
@@ -89,18 +91,39 @@ func (s *Service) CreateAnalysis(ctx context.Context, userID, projectID uuid.UUI
 		cleanTag = "latest"
 	}
 
-	if _, err := s.registries.GetRegistryForProject(ctx, projectID, registryID); err != nil {
+	registry, err := s.registries.GetRegistryForProject(ctx, projectID, registryID)
+	if err != nil {
 		if errors.Is(err, registries.ErrRegistryNotFound) {
 			return ImageAnalysis{}, err
 		}
 		return ImageAnalysis{}, err
 	}
 
+	normalizedImage, err := normalizeImageReference(cleanImage, registry.RegistryURL)
+	if err != nil {
+		return ImageAnalysis{}, err
+	}
+
 	return s.repo.CreateAnalysis(ctx, CreateAnalysisParams{
 		ProjectID:  projectID,
 		RegistryID: &registryID,
-		Image:      cleanImage,
+		Image:      normalizedImage,
 		Tag:        cleanTag,
 		Status:     StatusQueued,
 	})
+}
+
+func (s *Service) DeleteAnalysis(ctx context.Context, userID, projectID, analysisID uuid.UUID) error {
+	role, err := s.members.GetMemberRole(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, projects.ErrProjectMemberNotFound) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if role != projects.RoleOwner {
+		return ErrNotOwner
+	}
+
+	return s.repo.DeleteAnalysis(ctx, projectID, analysisID)
 }

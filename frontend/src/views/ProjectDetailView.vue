@@ -257,6 +257,7 @@
                 <th class="py-2 pr-4">Status</th>
                 <th class="py-2 pr-4">Created</th>
                 <th class="py-2">Total size</th>
+                <th class="py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800">
@@ -283,6 +284,16 @@
                 <td class="py-3 text-slate-400">
                   {{ analysis.total_size_bytes ? formatBytes(analysis.total_size_bytes) : '—' }}
                 </td>
+                <td class="py-3 text-right">
+                  <button
+                    v-if="isOwner"
+                    class="text-xs text-red-300 hover:text-red-200 disabled:opacity-60"
+                    :disabled="deletingAnalysisId === analysis.id"
+                    @click="handleDeleteAnalysis(analysis)"
+                  >
+                    {{ deletingAnalysisId === analysis.id ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -298,6 +309,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   createAnalysis,
   createRegistry,
+  deleteAnalysis,
   deleteProject,
   deleteRegistry,
   getProject,
@@ -323,6 +335,7 @@ const showForm = ref(false)
 const creatingRegistry = ref(false)
 const createRegistryError = ref('')
 const deletingRegistryId = ref(null)
+const deletingAnalysisId = ref(null)
 const fieldErrors = ref({})
 const showAnalysisForm = ref(false)
 const creatingAnalysis = ref(false)
@@ -538,6 +551,26 @@ const handleDeleteRegistry = async (registryId) => {
     registriesError.value = err.message
   } finally {
     deletingRegistryId.value = null
+  }
+}
+
+const handleDeleteAnalysis = async (analysis) => {
+  if (!analysis?.id) {
+    return
+  }
+  const confirmed = window.confirm('Delete this analysis? This cannot be undone.')
+  if (!confirmed) {
+    return
+  }
+
+  deletingAnalysisId.value = analysis.id
+  try {
+    await deleteAnalysis(route.params.id, analysis.id)
+    await fetchAnalyses()
+  } catch (err) {
+    analysesError.value = err.message
+  } finally {
+    deletingAnalysisId.value = null
   }
 }
 

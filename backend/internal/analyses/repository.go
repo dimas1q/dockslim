@@ -254,3 +254,23 @@ func (r *Repository) GetAnalysisForProject(ctx context.Context, projectID, analy
 
 	return analysis, nil
 }
+
+func (r *Repository) DeleteAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	const query = `
+		DELETE FROM image_analyses
+		WHERE id = $1 AND project_id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, analysisID, projectID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrAnalysisNotFound
+	}
+	return nil
+}
