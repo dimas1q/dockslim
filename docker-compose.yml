@@ -24,9 +24,9 @@ services:
     working_dir: /app
     command: ["go", "run", "./backend/cmd/api"]
     volumes:
-      - ..:/app
+      - .:/app
     env_file:
-      - ../backend/.env
+      - ./backend/.env
     depends_on:
       - postgres
       - redis
@@ -44,9 +44,9 @@ services:
     working_dir: /app
     command: ["go", "run", "./analyzer/cmd/analyzer"]
     volumes:
-      - ..:/app
+      - .:/app
     env_file:
-      - ../analyzer/.env
+      - ./analyzer/.env
     depends_on:
       - postgres
       - redis
@@ -56,7 +56,7 @@ services:
     working_dir: /app/frontend
     command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
     volumes:
-      - ..:/app
+      - .:/app
     environment:
       VITE_API_PROXY_TARGET: http://backend:8080
     ports:
