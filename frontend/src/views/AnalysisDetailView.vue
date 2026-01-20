@@ -120,6 +120,17 @@
 
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
             <p class="text-sm font-semibold text-slate-200">Optimization Recommendations</p>
+            <div v-if="recommendations.length" class="flex flex-wrap items-center gap-3 text-xs">
+              <span class="rounded-full border px-3 py-1" :class="severityStyles('critical').container">
+                Critical: {{ recommendationCounts.critical }}
+              </span>
+              <span class="rounded-full border px-3 py-1" :class="severityStyles('warning').container">
+                Warnings: {{ recommendationCounts.warning }}
+              </span>
+              <span class="rounded-full border px-3 py-1" :class="severityStyles('info').container">
+                Info: {{ recommendationCounts.info }}
+              </span>
+            </div>
             <div v-if="recommendations.length" class="grid gap-3 md:grid-cols-2">
               <div
                 v-for="recommendation in recommendations"
@@ -339,6 +350,17 @@ const layers = computed(() => result.value?.layers ?? [])
 const warnings = computed(() => result.value?.insights?.warnings ?? [])
 const largestLayers = computed(() => result.value?.insights?.largest_layers ?? [])
 const recommendations = computed(() => result.value?.recommendations ?? [])
+const recommendationCounts = computed(() =>
+  recommendations.value.reduce(
+    (counts, recommendation) => {
+      if (counts[recommendation.severity] != null) {
+        counts[recommendation.severity] += 1
+      }
+      return counts
+    },
+    { critical: 0, warning: 0, info: 0 },
+  ),
+)
 const layerCountDisplay = computed(() => {
   if (result.value?.insights?.layer_count != null) {
     return result.value.insights.layer_count

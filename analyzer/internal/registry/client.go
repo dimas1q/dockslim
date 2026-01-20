@@ -195,20 +195,32 @@ func parseManifestList(body []byte) (ManifestList, error) {
 }
 
 func selectManifestDigest(manifests []ManifestDescriptor) string {
+	supported := make([]ManifestDescriptor, 0, len(manifests))
 	for _, manifest := range manifests {
+		if isSupportedManifest(manifest.MediaType) {
+			supported = append(supported, manifest)
+		}
+	}
+	if len(supported) == 0 {
+		return ""
+	}
+	for _, manifest := range manifests {
+		if !isSupportedManifest(manifest.MediaType) {
+			continue
+		}
 		if manifest.Platform.OS == "linux" && manifest.Platform.Architecture == "amd64" {
 			return manifest.Digest
 		}
 	}
 	for _, manifest := range manifests {
+		if !isSupportedManifest(manifest.MediaType) {
+			continue
+		}
 		if manifest.Platform.OS == "linux" && manifest.Platform.Architecture == "arm64" {
 			return manifest.Digest
 		}
 	}
-	if len(manifests) == 0 {
-		return ""
-	}
-	return manifests[0].Digest
+	return supported[0].Digest
 }
 
 func resolveMediaType(body []byte, contentType string) string {
