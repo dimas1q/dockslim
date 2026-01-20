@@ -43,28 +43,119 @@
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
             <p class="text-xs text-slate-500">Total size</p>
             <p class="mt-1">
-              {{ analysis?.total_size_bytes ? formatBytes(analysis.total_size_bytes) : '—' }}
+              {{ totalSizeDisplay }}
             </p>
           </div>
         </div>
 
-        <div class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold">Result</p>
-            <span v-if="polling" class="text-xs text-slate-400">Updating...</span>
+        <div v-if="failedMessage" class="mt-6 rounded-xl border border-rose-500/40 bg-rose-950/40 p-6">
+          <p class="text-sm font-semibold text-rose-200">Analysis failed</p>
+          <p class="mt-2 text-sm text-rose-300">{{ failedMessage }}</p>
+        </div>
+        <div v-else-if="!analysis?.result_json" class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6">
+          <p class="text-sm text-slate-400">Layer breakdown coming soon.</p>
+        </div>
+        <div v-else class="mt-6 space-y-6">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Layer breakdown</span>
+            <span v-if="polling">Updating...</span>
           </div>
-          <p v-if="failedMessage" class="text-sm text-rose-300">
-            {{ failedMessage }}
-          </p>
-          <p v-else-if="!analysis?.result_json" class="text-sm text-slate-400">
-            Layer breakdown coming soon.
-          </p>
-          <pre
-            v-else
-            class="whitespace-pre-wrap break-words rounded-lg bg-slate-950/70 p-4 text-xs text-slate-200"
-          >
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
+              <p class="text-sm font-semibold text-slate-200">Summary</p>
+              <div class="text-sm text-slate-300 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500">Image</span>
+                  <span>{{ analysis?.image }}:{{ analysis?.tag }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500">Total size</span>
+                  <span>{{ totalSizeDisplay }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500">Layer count</span>
+                  <span>{{ layerCountDisplay }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500">Manifest type</span>
+                  <span>{{ manifestTypeLabel }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
+              <p class="text-sm font-semibold text-slate-200">Insights</p>
+              <div class="space-y-3 text-sm text-slate-300">
+                <div>
+                  <p class="text-xs uppercase text-slate-500 tracking-wide">Warnings</p>
+                  <ul v-if="warnings.length" class="mt-2 space-y-2">
+                    <li
+                      v-for="warning in warnings"
+                      :key="warning"
+                      class="rounded-lg border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-rose-200"
+                    >
+                      {{ warning }}
+                    </li>
+                  </ul>
+                  <p v-else class="mt-2 text-slate-400">No warnings detected.</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase text-slate-500 tracking-wide">Largest layers</p>
+                  <ul v-if="largestLayers.length" class="mt-2 space-y-2">
+                    <li
+                      v-for="layer in largestLayers"
+                      :key="layer.digest"
+                      class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2"
+                    >
+                      <span class="text-slate-300">{{ shortDigest(layer.digest) }}</span>
+                      <span class="text-slate-200">{{ formatBytes(layer.size_bytes) }}</span>
+                    </li>
+                  </ul>
+                  <p v-else class="mt-2 text-slate-400">No layers reported.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-semibold text-slate-200">Layers</p>
+              <button
+                class="text-xs text-indigo-400 hover:text-indigo-300"
+                type="button"
+                @click="showRaw = !showRaw"
+              >
+                {{ showRaw ? 'Hide raw JSON' : 'Show raw JSON' }}
+              </button>
+            </div>
+            <div class="max-h-80 overflow-y-auto rounded-lg border border-slate-800">
+              <table class="min-w-full text-left text-sm text-slate-300">
+                <thead class="bg-slate-900/70 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Digest</th>
+                    <th class="px-4 py-3">Size</th>
+                    <th class="px-4 py-3">Media type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="layer in layers" :key="layer.digest" class="border-t border-slate-800">
+                    <td class="px-4 py-3 font-mono text-xs text-slate-200">
+                      {{ shortDigest(layer.digest) }}
+                    </td>
+                    <td class="px-4 py-3">{{ formatBytes(layer.size_bytes) }}</td>
+                    <td class="px-4 py-3 text-xs text-slate-400">{{ layer.media_type || '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <pre
+              v-if="showRaw"
+              class="whitespace-pre-wrap break-words rounded-lg bg-slate-950/70 p-4 text-xs text-slate-200"
+            >
 {{ formattedResult }}
-          </pre>
+            </pre>
+          </div>
         </div>
       </div>
     </div>
@@ -87,6 +178,7 @@ const project = ref(null)
 const polling = ref(false)
 const rerunning = ref(false)
 const rerunError = ref('')
+const showRaw = ref(false)
 let pollTimer = null
 
 const fetchAnalysis = async ({ silent = false } = {}) => {
@@ -173,6 +265,18 @@ const formatBytes = (value) => {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
+const shortDigest = (value) => {
+  if (!value) return '—'
+  const trimmed = value.trim()
+  if (trimmed.includes(':')) {
+    const [algo, hash] = trimmed.split(':')
+    if (hash) {
+      return `${algo}:${hash.slice(0, 12)}`
+    }
+  }
+  return trimmed.slice(0, 12)
+}
+
 const statusBadgeClass = computed(() => {
   switch (analysis.value?.status) {
     case 'completed':
@@ -186,6 +290,8 @@ const statusBadgeClass = computed(() => {
   }
 })
 
+const result = computed(() => analysis.value?.result_json ?? null)
+
 const failedMessage = computed(() => {
   if (analysis.value?.status !== 'failed') {
     return ''
@@ -194,6 +300,43 @@ const failedMessage = computed(() => {
     return analysis.value.result_json.error
   }
   return 'Analysis failed.'
+})
+
+const totalSizeDisplay = computed(() => {
+  if (analysis.value?.total_size_bytes || analysis.value?.total_size_bytes === 0) {
+    return formatBytes(analysis.value.total_size_bytes)
+  }
+  if (result.value?.total_size_bytes || result.value?.total_size_bytes === 0) {
+    return formatBytes(result.value.total_size_bytes)
+  }
+  return '—'
+})
+
+const layers = computed(() => result.value?.layers ?? [])
+const warnings = computed(() => result.value?.insights?.warnings ?? [])
+const largestLayers = computed(() => result.value?.insights?.largest_layers ?? [])
+const layerCountDisplay = computed(() => {
+  if (result.value?.insights?.layer_count) {
+    return result.value.insights.layer_count
+  }
+  if (layers.value.length) {
+    return layers.value.length
+  }
+  return '—'
+})
+
+const manifestTypeLabel = computed(() => {
+  const mediaType = result.value?.media_type
+  if (!mediaType) {
+    return '—'
+  }
+  if (mediaType.includes('docker.distribution.manifest.v2+json')) {
+    return 'Docker'
+  }
+  if (mediaType.includes('oci.image.manifest.v1+json')) {
+    return 'OCI'
+  }
+  return mediaType
 })
 
 const formattedResult = computed(() => {
