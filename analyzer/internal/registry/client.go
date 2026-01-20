@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -30,7 +31,23 @@ type ManifestLayer struct {
 	MediaType string `json:"mediaType"`
 }
 
+type ManifestDescriptor struct {
+	Digest    string `json:"digest"`
+	MediaType string `json:"mediaType"`
+	Platform  struct {
+		OS           string `json:"os"`
+		Architecture string `json:"architecture"`
+		Variant      string `json:"variant,omitempty"`
+	} `json:"platform"`
+}
+
+type ManifestList struct {
+	MediaType string               `json:"mediaType"`
+	Manifests []ManifestDescriptor `json:"manifests"`
+}
+
 var ErrUnsupportedManifest = errors.New("unsupported manifest media type")
+var ErrNoSupportedManifest = errors.New("no supported manifest found in list")
 
 func NewClient() *Client {
 	return &Client{
@@ -66,7 +83,11 @@ func (c *Client) Ping(ctx context.Context, registryURL, username, password strin
 }
 
 func (c *Client) FetchManifest(ctx context.Context, registryURL, image, tag, username, password string) (ManifestSummary, error) {
-	manifestPath := path.Join("/v2", image, "manifests", tag)
+	return c.fetchManifest(ctx, registryURL, image, tag, username, password, true)
+}
+
+func (c *Client) fetchManifest(ctx context.Context, registryURL, image, ref, username, password string, includeLists bool) (ManifestSummary, error) {
+	manifestPath := path.Join("/v2", image, "manifests", ref)
 	endpoint, err := buildRegistryURL(registryURL, manifestPath)
 	if err != nil {
 		return ManifestSummary{}, err
@@ -76,10 +97,7 @@ func (c *Client) FetchManifest(ctx context.Context, registryURL, image, tag, use
 	if err != nil {
 		return ManifestSummary{}, err
 	}
-	req.Header.Set("Accept", strings.Join([]string{
-		"application/vnd.docker.distribution.manifest.v2+json",
-		"application/vnd.oci.image.manifest.v1+json",
-	}, ", "))
+	req.Header.Set("Accept", strings.Join(buildManifestAcceptHeader(includeLists), ", "))
 	if username != "" {
 		req.SetBasicAuth(username, password)
 	}
@@ -94,7 +112,25 @@ func (c *Client) FetchManifest(ctx context.Context, registryURL, image, tag, use
 		return ManifestSummary{}, HTTPStatusError{StatusCode: resp.StatusCode}
 	}
 
-	return parseManifest(resp.Body, resp.Header.Get("Content-Type"))
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ManifestSummary{}, err
+	}
+
+	mediaType := resolveMediaType(body, resp.Header.Get("Content-Type"))
+	if isManifestList(mediaType) {
+		manifestList, err := parseManifestList(body)
+		if err != nil {
+			return ManifestSummary{}, err
+		}
+		digest := selectManifestDigest(manifestList.Manifests)
+		if digest == "" {
+			return ManifestSummary{}, ErrNoSupportedManifest
+		}
+		return c.fetchManifest(ctx, registryURL, image, digest, username, password, false)
+	}
+
+	return parseManifestBytes(body, mediaType)
 }
 
 type HTTPStatusError struct {
@@ -117,11 +153,7 @@ func parseManifest(body io.Reader, contentType string) (ManifestSummary, error) 
 		return ManifestSummary{}, err
 	}
 
-	mediaType := normalizeMediaType(contentType)
-	if mediaType == "" {
-		mediaType = manifest.MediaType
-	}
-
+	mediaType := resolveMediaTypeFromManifest(contentType, manifest.MediaType)
 	if !isSupportedManifest(mediaType) {
 		return ManifestSummary{}, ErrUnsupportedManifest
 	}
@@ -137,6 +169,68 @@ func parseManifest(body io.Reader, contentType string) (ManifestSummary, error) 
 		LayerCount: len(manifest.Layers),
 		TotalSize:  total,
 	}, nil
+}
+
+func parseManifestBytes(body []byte, contentType string) (ManifestSummary, error) {
+	return parseManifest(bytes.NewReader(body), contentType)
+}
+
+func parseManifestList(body []byte) (ManifestList, error) {
+	var list ManifestList
+	if err := json.Unmarshal(body, &list); err != nil {
+		return ManifestList{}, err
+	}
+	if list.MediaType == "" {
+		var wrapper struct {
+			MediaType string `json:"mediaType"`
+		}
+		if err := json.Unmarshal(body, &wrapper); err == nil {
+			list.MediaType = wrapper.MediaType
+		}
+	}
+	if !isManifestList(list.MediaType) {
+		return ManifestList{}, ErrUnsupportedManifest
+	}
+	return list, nil
+}
+
+func selectManifestDigest(manifests []ManifestDescriptor) string {
+	for _, manifest := range manifests {
+		if manifest.Platform.OS == "linux" && manifest.Platform.Architecture == "amd64" {
+			return manifest.Digest
+		}
+	}
+	for _, manifest := range manifests {
+		if manifest.Platform.OS == "linux" && manifest.Platform.Architecture == "arm64" {
+			return manifest.Digest
+		}
+	}
+	if len(manifests) == 0 {
+		return ""
+	}
+	return manifests[0].Digest
+}
+
+func resolveMediaType(body []byte, contentType string) string {
+	mediaType := normalizeMediaType(contentType)
+	if mediaType != "" {
+		return mediaType
+	}
+	var wrapper struct {
+		MediaType string `json:"mediaType"`
+	}
+	if err := json.Unmarshal(body, &wrapper); err != nil {
+		return ""
+	}
+	return wrapper.MediaType
+}
+
+func resolveMediaTypeFromManifest(contentType, manifestMediaType string) string {
+	mediaType := normalizeMediaType(contentType)
+	if mediaType != "" {
+		return mediaType
+	}
+	return manifestMediaType
 }
 
 func normalizeMediaType(value string) string {
@@ -155,6 +249,30 @@ func isSupportedManifest(mediaType string) bool {
 	default:
 		return false
 	}
+}
+
+func isManifestList(mediaType string) bool {
+	switch mediaType {
+	case "application/vnd.docker.distribution.manifest.list.v2+json",
+		"application/vnd.oci.image.index.v1+json":
+		return true
+	default:
+		return false
+	}
+}
+
+func buildManifestAcceptHeader(includeLists bool) []string {
+	accept := []string{
+		"application/vnd.docker.distribution.manifest.v2+json",
+		"application/vnd.oci.image.manifest.v1+json",
+	}
+	if includeLists {
+		accept = append(accept,
+			"application/vnd.docker.distribution.manifest.list.v2+json",
+			"application/vnd.oci.image.index.v1+json",
+		)
+	}
+	return accept
 }
 
 func buildRegistryURL(base, endpoint string) (string, error) {

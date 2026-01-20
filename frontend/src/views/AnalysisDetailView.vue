@@ -119,6 +119,29 @@
           </div>
 
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
+            <p class="text-sm font-semibold text-slate-200">Optimization Recommendations</p>
+            <div v-if="recommendations.length" class="grid gap-3 md:grid-cols-2">
+              <div
+                v-for="recommendation in recommendations"
+                :key="recommendation.id"
+                class="rounded-xl border p-4"
+                :class="severityStyles(recommendation.severity).container"
+              >
+                <div class="flex items-center gap-2">
+                  <span
+                    class="h-2.5 w-2.5 rounded-full"
+                    :class="severityStyles(recommendation.severity).icon"
+                  ></span>
+                  <p class="text-sm font-semibold">{{ recommendation.title }}</p>
+                </div>
+                <p class="mt-2 text-sm text-slate-200">{{ recommendation.description }}</p>
+                <p class="mt-2 text-xs text-slate-400">{{ recommendation.suggested_action }}</p>
+              </div>
+            </div>
+            <p v-else class="text-sm text-slate-400">No optimization issues detected 🎉</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
             <div class="flex items-center justify-between">
               <p class="text-sm font-semibold text-slate-200">Layers</p>
               <button
@@ -315,8 +338,9 @@ const totalSizeDisplay = computed(() => {
 const layers = computed(() => result.value?.layers ?? [])
 const warnings = computed(() => result.value?.insights?.warnings ?? [])
 const largestLayers = computed(() => result.value?.insights?.largest_layers ?? [])
+const recommendations = computed(() => result.value?.recommendations ?? [])
 const layerCountDisplay = computed(() => {
-  if (result.value?.insights?.layer_count) {
+  if (result.value?.insights?.layer_count != null) {
     return result.value.insights.layer_count
   }
   if (layers.value.length) {
@@ -338,6 +362,31 @@ const manifestTypeLabel = computed(() => {
   }
   return mediaType
 })
+
+const severityStyles = (severity) => {
+  switch (severity) {
+    case 'critical':
+      return {
+        container: 'border-rose-500/40 bg-rose-950/30',
+        icon: 'bg-rose-400',
+      }
+    case 'warning':
+      return {
+        container: 'border-amber-500/40 bg-amber-950/30',
+        icon: 'bg-amber-400',
+      }
+    case 'info':
+      return {
+        container: 'border-sky-500/40 bg-sky-950/30',
+        icon: 'bg-sky-400',
+      }
+    default:
+      return {
+        container: 'border-slate-700 bg-slate-950/30',
+        icon: 'bg-slate-400',
+      }
+  }
+}
 
 const formattedResult = computed(() => {
   if (!analysis.value?.result_json) {
