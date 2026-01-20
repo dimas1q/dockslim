@@ -44,6 +44,30 @@ func (r *analysisRepoStub) RerunAnalysis(ctx context.Context, projectID, analysi
 	return nil
 }
 
+type analysisRepoGetStub struct {
+	analysis analyses.ImageAnalysis
+}
+
+func (r *analysisRepoGetStub) ListAnalysesByProject(ctx context.Context, projectID uuid.UUID) ([]analyses.ImageAnalysis, error) {
+	return nil, nil
+}
+
+func (r *analysisRepoGetStub) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return r.analysis, nil
+}
+
+func (r *analysisRepoGetStub) CreateAnalysis(ctx context.Context, params analyses.CreateAnalysisParams) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, nil
+}
+
+func (r *analysisRepoGetStub) DeleteAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	return nil
+}
+
+func (r *analysisRepoGetStub) RerunAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	return nil
+}
+
 type registryStoreStub struct {
 	err error
 }
@@ -154,8 +178,61 @@ func TestAnalysesHandlerListMemberOnly(t *testing.T) {
 	}
 }
 
+func TestAnalysesHandlerGetIncludesRecommendations(t *testing.T) {
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	resultJSON := json.RawMessage(`{"recommendations":[{"id":"large-image","severity":"warning","category":"size","title":"Large container image size","description":"The total image size exceeds 1 GB.","suggested_action":"Consider using a slimmer base image (alpine, distroless)."}]}`)
+	repo := &analysisRepoGetStub{
+		analysis: analyses.ImageAnalysis{
+			ID:         analysisID,
+			ProjectID:  projectID,
+			Image:      "repo/image",
+			Tag:        "latest",
+			Status:     analyses.StatusCompleted,
+			ResultJSON: resultJSON,
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore)
+	handler := NewAnalysesHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/"+analysisID.String(), nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	req = withURLParamAnalysis(req, "analysisId", analysisID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Get(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	resultValue, ok := response["result_json"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected result_json object in response")
+	}
+	recommendations, ok := resultValue["recommendations"].([]interface{})
+	if !ok || len(recommendations) == 0 {
+		t.Fatalf("expected recommendations in result_json")
+	}
+	first, ok := recommendations[0].(map[string]interface{})
+	if !ok || first["id"] != "large-image" {
+		t.Fatalf("expected large-image recommendation")
+	}
+}
+
 func withURLParamAnalysis(r *http.Request, key, value string) *http.Request {
-	routeContext := chi.NewRouteContext()
+	routeContext := chi.RouteContext(r.Context())
+	if routeContext == nil {
+		routeContext = chi.NewRouteContext()
+	}
 	routeContext.URLParams.Add(key, value)
 	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, routeContext)
 	return r.WithContext(ctx)

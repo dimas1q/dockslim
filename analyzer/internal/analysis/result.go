@@ -7,10 +7,11 @@ type LayerResult struct {
 }
 
 type Result struct {
-	Image          string        `json:"image"`
-	Tag            string        `json:"tag"`
-	MediaType      string        `json:"media_type"`
-	Layers         []LayerResult `json:"layers"`
-	TotalSizeBytes int64         `json:"total_size_bytes"`
-	Insights       Insights      `json:"insights"`
+	Image           string           `json:"image"`
+	Tag             string           `json:"tag"`
+	MediaType       string           `json:"media_type"`
+	Layers          []LayerResult    `json:"layers"`
+	TotalSizeBytes  int64            `json:"total_size_bytes"`
+	Insights        Insights         `json:"insights"`
+	Recommendations []Recommendation `json:"recommendations"`
 }

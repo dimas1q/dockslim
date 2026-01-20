@@ -189,14 +189,16 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 
 	totalSize := manifestSummary.TotalSize
 	insights := analysis.BuildInsights(manifestSummary.Layers, totalSize)
+	recommendations := analysis.BuildRecommendations(manifestSummary.Layers, totalSize)
 
 	result := analysis.Result{
-		Image:          input.Image,
-		Tag:            input.Tag,
-		MediaType:      manifestSummary.MediaType,
-		Layers:         layers,
-		TotalSizeBytes: totalSize,
-		Insights:       insights,
+		Image:           input.Image,
+		Tag:             input.Tag,
+		MediaType:       manifestSummary.MediaType,
+		Layers:          layers,
+		TotalSizeBytes:  totalSize,
+		Insights:        insights,
+		Recommendations: recommendations,
 	}
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
