@@ -68,6 +68,34 @@ func (r *analysisRepoGetStub) RerunAnalysis(ctx context.Context, projectID, anal
 	return nil
 }
 
+type analysisCompareRepoStub struct {
+	analyses map[uuid.UUID]analyses.ImageAnalysis
+}
+
+func (r *analysisCompareRepoStub) ListAnalysesByProject(ctx context.Context, projectID uuid.UUID) ([]analyses.ImageAnalysis, error) {
+	return nil, nil
+}
+
+func (r *analysisCompareRepoStub) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
+	analysis, ok := r.analyses[analysisID]
+	if !ok {
+		return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
+	}
+	return analysis, nil
+}
+
+func (r *analysisCompareRepoStub) CreateAnalysis(ctx context.Context, params analyses.CreateAnalysisParams) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, nil
+}
+
+func (r *analysisCompareRepoStub) DeleteAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	return nil
+}
+
+func (r *analysisCompareRepoStub) RerunAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error {
+	return nil
+}
+
 type registryStoreStub struct {
 	err error
 }
@@ -225,6 +253,181 @@ func TestAnalysesHandlerGetIncludesRecommendations(t *testing.T) {
 	first, ok := recommendations[0].(map[string]interface{})
 	if !ok || first["id"] != "large-image" {
 		t.Fatalf("expected large-image recommendation")
+	}
+}
+
+func TestAnalysesHandlerCompareMemberOnly(t *testing.T) {
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	repo := &analysisCompareRepoStub{analyses: map[uuid.UUID]analyses.ImageAnalysis{}}
+	members := &analysisMembershipStub{err: projects.ErrProjectMemberNotFound}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore)
+	handler := NewAnalysesHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+uuid.New().String()+"&to="+uuid.New().String(), nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Compare(recorder, req)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
+	}
+}
+
+func TestAnalysesHandlerCompareDifferentImages(t *testing.T) {
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	fromID := uuid.New()
+	toID := uuid.New()
+	repo := &analysisCompareRepoStub{
+		analyses: map[uuid.UUID]analyses.ImageAnalysis{
+			fromID: {
+				ID:        fromID,
+				ProjectID: projectID,
+				Image:     "repo/app",
+				Status:    analyses.StatusCompleted,
+			},
+			toID: {
+				ID:        toID,
+				ProjectID: projectID,
+				Image:     "repo/other",
+				Status:    analyses.StatusCompleted,
+			},
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore)
+	handler := NewAnalysesHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+fromID.String()+"&to="+toID.String(), nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Compare(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+}
+
+func TestAnalysesHandlerCompareRequiresCompleted(t *testing.T) {
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	fromID := uuid.New()
+	toID := uuid.New()
+	repo := &analysisCompareRepoStub{
+		analyses: map[uuid.UUID]analyses.ImageAnalysis{
+			fromID: {
+				ID:        fromID,
+				ProjectID: projectID,
+				Image:     "repo/app",
+				Status:    analyses.StatusRunning,
+			},
+			toID: {
+				ID:        toID,
+				ProjectID: projectID,
+				Image:     "repo/app",
+				Status:    analyses.StatusCompleted,
+			},
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore)
+	handler := NewAnalysesHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+fromID.String()+"&to="+toID.String(), nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Compare(recorder, req)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d", recorder.Code)
+	}
+}
+
+func TestAnalysesHandlerCompareDiff(t *testing.T) {
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	fromID := uuid.New()
+	toID := uuid.New()
+	fromResult := json.RawMessage(`{"layers":[{"digest":"sha256:aaa","size_bytes":10},{"digest":"sha256:bbb","size_bytes":30}],"total_size_bytes":40}`)
+	toResult := json.RawMessage(`{"layers":[{"digest":"sha256:bbb","size_bytes":30},{"digest":"sha256:ccc","size_bytes":20}],"total_size_bytes":50}`)
+	repo := &analysisCompareRepoStub{
+		analyses: map[uuid.UUID]analyses.ImageAnalysis{
+			fromID: {
+				ID:             fromID,
+				ProjectID:      projectID,
+				Image:          "repo/app",
+				Tag:            "1.0.0",
+				Status:         analyses.StatusCompleted,
+				TotalSizeBytes: func() *int64 { v := int64(40); return &v }(),
+				ResultJSON:     fromResult,
+			},
+			toID: {
+				ID:             toID,
+				ProjectID:      projectID,
+				Image:          "repo/app",
+				Tag:            "1.1.0",
+				Status:         analyses.StatusCompleted,
+				TotalSizeBytes: func() *int64 { v := int64(50); return &v }(),
+				ResultJSON:     toResult,
+			},
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore)
+	handler := NewAnalysesHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+fromID.String()+"&to="+toID.String(), nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Compare(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var response struct {
+		Summary struct {
+			TotalSizeDiffBytes int64 `json:\"total_size_diff_bytes\"`
+			LayerCountDiff     int   `json:\"layer_count_diff\"`
+		} `json:\"summary\"`
+		Layers struct {
+			Added []struct {
+				Digest    string `json:\"digest\"`
+				SizeBytes int64  `json:\"size_bytes\"`
+			} `json:\"added\"`
+			Removed []struct {
+				Digest    string `json:\"digest\"`
+				SizeBytes int64  `json:\"size_bytes\"`
+			} `json:\"removed\"`
+		} `json:\"layers\"`
+	}
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response.Summary.TotalSizeDiffBytes != 10 {
+		t.Fatalf("expected size diff 10, got %d", response.Summary.TotalSizeDiffBytes)
+	}
+	if response.Summary.LayerCountDiff != 0 {
+		t.Fatalf("expected layer count diff 0, got %d", response.Summary.LayerCountDiff)
+	}
+	if len(response.Layers.Added) != 1 || response.Layers.Added[0].Digest != "sha256:ccc" {
+		t.Fatalf("expected added layer sha256:ccc")
+	}
+	if len(response.Layers.Removed) != 1 || response.Layers.Removed[0].Digest != "sha256:aaa" {
+		t.Fatalf("expected removed layer sha256:aaa")
 	}
 }
 

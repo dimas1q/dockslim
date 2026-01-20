@@ -105,6 +105,17 @@ curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID} \
   -b /tmp/dockslim.cookies
 ```
 
+Analysis comparison:
+
+```bash
+FROM_ANALYSIS_ID="analysis-id-a"
+TO_ANALYSIS_ID="analysis-id-b"
+curl -b /tmp/dockslim.cookies \
+  "http://localhost:8080/api/v1/projects/${PROJECT_ID}/analyses/compare?from=${FROM_ANALYSIS_ID}&to=${TO_ANALYSIS_ID}"
+```
+
+In the frontend, open a completed analysis or the project analyses list and use the Compare action to see the size and layer diff between two completed analyses of the same image.
+
 ### Analyzer Worker
 
 ```bash

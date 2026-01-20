@@ -232,6 +232,50 @@ func (h *AnalysesHandler) Rerun(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *AnalysesHandler) Compare(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID, err := parseUUIDParam(r, "projectId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	fromID, err := parseUUID(r.URL.Query().Get("from"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid from analysis id")
+		return
+	}
+	toID, err := parseUUID(r.URL.Query().Get("to"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid to analysis id")
+		return
+	}
+
+	comparison, err := h.service.CompareAnalyses(r.Context(), user.ID, projectID, fromID, toID)
+	if err != nil {
+		switch {
+		case errors.Is(err, analyses.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, analyses.ErrAnalysisNotFound):
+			writeError(w, http.StatusNotFound, "analysis not found")
+		case errors.Is(err, analyses.ErrAnalysesDifferentImage):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, analyses.ErrAnalysesNotCompleted):
+			writeError(w, http.StatusConflict, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to compare analyses")
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, comparison)
+}
+
 func toAnalysisResponse(analysis analyses.ImageAnalysis) analysisResponse {
 	var registryID *string
 	if analysis.RegistryID != nil {

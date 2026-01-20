@@ -285,14 +285,23 @@
                   {{ analysis.total_size_bytes ? formatBytes(analysis.total_size_bytes) : '—' }}
                 </td>
                 <td class="py-3 text-right">
-                  <button
-                    v-if="isOwner"
-                    class="text-xs text-red-300 hover:text-red-200 disabled:opacity-60"
-                    :disabled="deletingAnalysisId === analysis.id"
-                    @click="handleDeleteAnalysis(analysis)"
-                  >
-                    {{ deletingAnalysisId === analysis.id ? 'Deleting...' : 'Delete' }}
-                  </button>
+                  <div class="flex items-center justify-end gap-3">
+                    <RouterLink
+                      v-if="getPreviousCompletedAnalysis(analysis)"
+                      class="text-xs text-indigo-400 hover:text-indigo-300"
+                      :to="`/projects/${project?.id}/analyses/compare?from=${getPreviousCompletedAnalysis(analysis)?.id}&to=${analysis.id}`"
+                    >
+                      Compare
+                    </RouterLink>
+                    <button
+                      v-if="isOwner"
+                      class="text-xs text-red-300 hover:text-red-200 disabled:opacity-60"
+                      :disabled="deletingAnalysisId === analysis.id"
+                      @click="handleDeleteAnalysis(analysis)"
+                    >
+                      {{ deletingAnalysisId === analysis.id ? 'Deleting...' : 'Delete' }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -602,6 +611,29 @@ const statusBadgeClass = (status) => {
     default:
       return 'bg-amber-500/20 text-amber-200'
   }
+}
+
+const getPreviousCompletedAnalysis = (analysis) => {
+  if (!analysis || analysis.status !== 'completed') {
+    return null
+  }
+  const currentCreatedAt = new Date(analysis.created_at).getTime()
+  for (const item of analyses.value) {
+    if (item.id === analysis.id) {
+      continue
+    }
+    if (item.image !== analysis.image) {
+      continue
+    }
+    if (item.status !== 'completed') {
+      continue
+    }
+    if (new Date(item.created_at).getTime() >= currentCreatedAt) {
+      continue
+    }
+    return item
+  }
+  return null
 }
 
 const handleDelete = async () => {

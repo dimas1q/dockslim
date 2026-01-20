@@ -121,3 +121,8 @@ export const rerunAnalysis = (projectId, analysisId) =>
   apiRequest(`/api/v1/projects/${projectId}/analyses/${analysisId}/rerun`, {
     method: 'POST',
   })
+
+export const compareAnalyses = (projectId, fromId, toId) =>
+  apiRequest(
+    `/api/v1/projects/${projectId}/analyses/compare?from=${encodeURIComponent(fromId)}&to=${encodeURIComponent(toId)}`,
+  )

@@ -51,6 +51,7 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Route("/{projectId}/analyses", func(r chi.Router) {
 					r.Get("/", deps.AnalysesHandler.List)
 					r.Post("/", deps.AnalysesHandler.Create)
+					r.Get("/compare", deps.AnalysesHandler.Compare)
 					r.Get("/{analysisId}", deps.AnalysesHandler.Get)
 					r.Delete("/{analysisId}", deps.AnalysesHandler.Delete)
 					r.Post("/{analysisId}/rerun", deps.AnalysesHandler.Rerun)
