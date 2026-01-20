@@ -340,7 +340,7 @@ const warnings = computed(() => result.value?.insights?.warnings ?? [])
 const largestLayers = computed(() => result.value?.insights?.largest_layers ?? [])
 const recommendations = computed(() => result.value?.recommendations ?? [])
 const layerCountDisplay = computed(() => {
-  if (result.value?.insights?.layer_count) {
+  if (result.value?.insights?.layer_count != null) {
     return result.value.insights.layer_count
   }
   if (layers.value.length) {
