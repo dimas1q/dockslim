@@ -83,7 +83,8 @@ func TestParseManifestListDocker(t *testing.T) {
 func TestSelectManifestDigestPrefersLinuxAmd64(t *testing.T) {
 	manifests := []ManifestDescriptor{
 		{
-			Digest: "sha256:arm64",
+			Digest:    "sha256:arm64",
+			MediaType: "application/vnd.docker.distribution.manifest.v2+json",
 			Platform: struct {
 				OS           string `json:"os"`
 				Architecture string `json:"architecture"`
@@ -94,7 +95,8 @@ func TestSelectManifestDigestPrefersLinuxAmd64(t *testing.T) {
 			},
 		},
 		{
-			Digest: "sha256:amd64",
+			Digest:    "sha256:amd64",
+			MediaType: "application/vnd.docker.distribution.manifest.v2+json",
 			Platform: struct {
 				OS           string `json:"os"`
 				Architecture string `json:"architecture"`
@@ -109,6 +111,40 @@ func TestSelectManifestDigestPrefersLinuxAmd64(t *testing.T) {
 	selected := selectManifestDigest(manifests)
 	if selected != "sha256:amd64" {
 		t.Fatalf("expected amd64 digest, got %s", selected)
+	}
+}
+
+func TestSelectManifestDigestSkipsUnsupportedMediaType(t *testing.T) {
+	manifests := []ManifestDescriptor{
+		{
+			Digest:    "sha256:amd64-unsupported",
+			MediaType: "application/vnd.docker.distribution.manifest.v1+prettyjws",
+			Platform: struct {
+				OS           string `json:"os"`
+				Architecture string `json:"architecture"`
+				Variant      string `json:"variant,omitempty"`
+			}{
+				OS:           "linux",
+				Architecture: "amd64",
+			},
+		},
+		{
+			Digest:    "sha256:arm64-supported",
+			MediaType: "application/vnd.oci.image.manifest.v1+json",
+			Platform: struct {
+				OS           string `json:"os"`
+				Architecture string `json:"architecture"`
+				Variant      string `json:"variant,omitempty"`
+			}{
+				OS:           "linux",
+				Architecture: "arm64",
+			},
+		},
+	}
+
+	selected := selectManifestDigest(manifests)
+	if selected != "sha256:arm64-supported" {
+		t.Fatalf("expected arm64 supported digest, got %s", selected)
 	}
 }
 

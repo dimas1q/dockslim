@@ -189,7 +189,7 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 
 	totalSize := manifestSummary.TotalSize
 	insights := analysis.BuildInsights(manifestSummary.Layers, totalSize)
-	recommendations := analysis.BuildRecommendations(manifestSummary.Layers, totalSize)
+	recommendations := analysis.BuildRecommendations(manifestSummary.Layers, totalSize, manifestSummary.MediaType)
 
 	result := analysis.Result{
 		Image:           input.Image,
