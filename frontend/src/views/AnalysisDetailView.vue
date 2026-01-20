@@ -120,6 +120,16 @@
 
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
             <p class="text-sm font-semibold text-slate-200">Optimization Recommendations</p>
+            <div v-if="recommendations.length" class="flex flex-wrap gap-3 text-xs">
+              <span
+                v-for="item in recommendationSummaryItems"
+                :key="item.severity"
+                class="rounded-full border px-3 py-1"
+                :class="[severityStyles(item.severity).container, severityTextClass(item.severity)]"
+              >
+                {{ item.label }}: {{ item.count }}
+              </span>
+            </div>
             <div v-if="recommendations.length" class="grid gap-3 md:grid-cols-2">
               <div
                 v-for="recommendation in recommendations"
@@ -339,6 +349,20 @@ const layers = computed(() => result.value?.layers ?? [])
 const warnings = computed(() => result.value?.insights?.warnings ?? [])
 const largestLayers = computed(() => result.value?.insights?.largest_layers ?? [])
 const recommendations = computed(() => result.value?.recommendations ?? [])
+const recommendationSummary = computed(() => {
+  const summary = { critical: 0, warning: 0, info: 0 }
+  for (const recommendation of recommendations.value) {
+    if (summary[recommendation.severity] !== undefined) {
+      summary[recommendation.severity] += 1
+    }
+  }
+  return summary
+})
+const recommendationSummaryItems = computed(() => [
+  { label: 'Critical', severity: 'critical', count: recommendationSummary.value.critical },
+  { label: 'Warnings', severity: 'warning', count: recommendationSummary.value.warning },
+  { label: 'Info', severity: 'info', count: recommendationSummary.value.info },
+])
 const layerCountDisplay = computed(() => {
   if (result.value?.insights?.layer_count != null) {
     return result.value.insights.layer_count
@@ -385,6 +409,19 @@ const severityStyles = (severity) => {
         container: 'border-slate-700 bg-slate-950/30',
         icon: 'bg-slate-400',
       }
+  }
+}
+
+const severityTextClass = (severity) => {
+  switch (severity) {
+    case 'critical':
+      return 'text-rose-200'
+    case 'warning':
+      return 'text-amber-200'
+    case 'info':
+      return 'text-sky-200'
+    default:
+      return 'text-slate-200'
   }
 }
 

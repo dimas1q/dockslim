@@ -6,12 +6,7 @@ import (
 	"github.com/dimas1q/dockslim/analyzer/internal/registry"
 )
 
-const (
-	largeLayerThresholdBytes = 200 * 1024 * 1024
-	manyLayersThreshold      = 40
-	largeImageThresholdBytes = 1024 * 1024 * 1024
-	maxLargestLayers         = 3
-)
+const maxLargestLayers = 3
 
 type LayerInsight struct {
 	Digest    string `json:"digest"`
