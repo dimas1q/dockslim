@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dimas1q/dockslim/analyzer/internal/analysis"
 	"github.com/dimas1q/dockslim/analyzer/internal/registry"
 	"github.com/google/uuid"
 )
@@ -177,12 +178,25 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 		return err
 	}
 
-	result := map[string]any{
-		"note":        "analysis complete",
-		"image":       input.Image,
-		"tag":         input.Tag,
-		"registry":    input.RegistryURL,
-		"layer_count": manifestSummary.LayerCount,
+	layers := make([]analysis.LayerResult, 0, len(manifestSummary.Layers))
+	for _, layer := range manifestSummary.Layers {
+		layers = append(layers, analysis.LayerResult{
+			Digest:    layer.Digest,
+			SizeBytes: layer.Size,
+			MediaType: layer.MediaType,
+		})
+	}
+
+	totalSize := manifestSummary.TotalSize
+	insights := analysis.BuildInsights(manifestSummary.Layers, totalSize)
+
+	result := analysis.Result{
+		Image:          input.Image,
+		Tag:            input.Tag,
+		MediaType:      manifestSummary.MediaType,
+		Layers:         layers,
+		TotalSizeBytes: totalSize,
+		Insights:       insights,
 	}
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
@@ -190,7 +204,6 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 		return err
 	}
 
-	totalSize := manifestSummary.TotalSize
 	if err := w.completeJob(ctx, job.ID, job.AnalysisID, resultJSON, &totalSize); err != nil {
 		return err
 	}

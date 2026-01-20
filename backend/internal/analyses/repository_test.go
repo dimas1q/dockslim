@@ -105,3 +105,66 @@ func TestRerunAnalysisResetsAndEnqueuesJob(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestGetAnalysisForProjectReturnsResults(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewRepository(db)
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	now := time.Now()
+	totalSize := int64(98765)
+	resultJSON := `{"total_size_bytes":98765}`
+
+	rows := sqlmock.NewRows([]string{
+		"id",
+		"project_id",
+		"registry_id",
+		"image",
+		"tag",
+		"status",
+		"total_size_bytes",
+		"result_json",
+		"started_at",
+		"finished_at",
+		"created_at",
+		"updated_at",
+	}).AddRow(
+		analysisID,
+		projectID,
+		nil,
+		"repo/image",
+		"latest",
+		StatusCompleted,
+		totalSize,
+		resultJSON,
+		now,
+		now,
+		now,
+		now,
+	)
+
+	mock.ExpectQuery("SELECT id, project_id, registry_id, image, tag, status, total_size_bytes, result_json, started_at, finished_at, created_at, updated_at").
+		WithArgs(analysisID, projectID).
+		WillReturnRows(rows)
+
+	analysis, err := repo.GetAnalysisForProject(context.Background(), projectID, analysisID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if analysis.TotalSizeBytes == nil || *analysis.TotalSizeBytes != totalSize {
+		t.Fatalf("expected total size %d, got %+v", totalSize, analysis.TotalSizeBytes)
+	}
+	if string(analysis.ResultJSON) != resultJSON {
+		t.Fatalf("expected result json %s, got %s", resultJSON, string(analysis.ResultJSON))
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
