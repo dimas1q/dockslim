@@ -139,15 +139,81 @@
               Username: {{ registry.username }}
             </p>
             <div v-if="isOwner" class="pt-1">
-              <button
-                class="text-xs text-red-300 hover:text-red-200"
-                :disabled="deletingRegistryId === registry.id"
-                @click="handleDeleteRegistry(registry.id)"
-              >
-                {{ deletingRegistryId === registry.id ? 'Deleting...' : 'Delete' }}
-              </button>
+              <div class="flex items-center gap-3">
+                <button
+                  class="text-xs text-indigo-300 hover:text-indigo-200"
+                  type="button"
+                  @click="openEditRegistry(registry)"
+                >
+                  Edit
+                </button>
+                <button
+                  class="text-xs text-red-300 hover:text-red-200"
+                  :disabled="deletingRegistryId === registry.id"
+                  @click="handleDeleteRegistry(registry.id)"
+                >
+                  {{ deletingRegistryId === registry.id ? 'Deleting...' : 'Delete' }}
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div
+        v-if="editingRegistry"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+      >
+        <div class="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h4 class="text-lg font-semibold text-slate-100">Edit registry</h4>
+              <p class="text-xs text-slate-400">Update the name or registry URL.</p>
+            </div>
+            <button class="text-slate-400 hover:text-slate-200" type="button" @click="closeEdit">
+              ✕
+            </button>
+          </div>
+          <form class="space-y-4" @submit.prevent="handleUpdateRegistry">
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400">Name</label>
+              <input
+                v-model="editForm.name"
+                type="text"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              />
+              <p v-if="editErrors.name" class="text-xs text-red-400">{{ editErrors.name }}</p>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400">Registry URL</label>
+              <input
+                v-model="editForm.registry_url"
+                type="url"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              />
+              <p v-if="editErrors.registry_url" class="text-xs text-red-400">
+                {{ editErrors.registry_url }}
+              </p>
+            </div>
+            <p v-if="editRegistryError" class="text-sm text-red-400">{{ editRegistryError }}</p>
+            <div class="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                class="text-sm text-slate-400 hover:text-slate-200"
+                :disabled="savingRegistry"
+                @click="closeEdit"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+                :disabled="savingRegistry"
+              >
+                {{ savingRegistry ? 'Saving...' : 'Save changes' }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </section>
@@ -324,6 +390,7 @@ import {
   getProject,
   listAnalyses,
   listRegistries,
+  updateRegistry,
 } from '../api/client'
 
 const route = useRoute()
@@ -345,6 +412,11 @@ const creatingRegistry = ref(false)
 const createRegistryError = ref('')
 const deletingRegistryId = ref(null)
 const deletingAnalysisId = ref(null)
+const editingRegistry = ref(null)
+const editForm = ref({ name: '', registry_url: '' })
+const editErrors = ref({})
+const savingRegistry = ref(false)
+const editRegistryError = ref('')
 const fieldErrors = ref({})
 const showAnalysisForm = ref(false)
 const creatingAnalysis = ref(false)
@@ -618,22 +690,93 @@ const getPreviousCompletedAnalysis = (analysis) => {
     return null
   }
   const currentCreatedAt = new Date(analysis.created_at).getTime()
-  for (const item of analyses.value) {
-    if (item.id === analysis.id) {
-      continue
-    }
-    if (item.image !== analysis.image) {
-      continue
-    }
-    if (item.status !== 'completed') {
-      continue
-    }
-    if (new Date(item.created_at).getTime() >= currentCreatedAt) {
-      continue
-    }
-    return item
+  if (!Number.isFinite(currentCreatedAt)) {
+    return null
   }
-  return null
+  return analyses.value.reduce((latest, item) => {
+    if (item.id === analysis.id) {
+      return latest
+    }
+    if (item.image !== analysis.image || item.status !== 'completed') {
+      return latest
+    }
+    const itemCreatedAt = new Date(item.created_at).getTime()
+    if (!Number.isFinite(itemCreatedAt) || itemCreatedAt >= currentCreatedAt) {
+      return latest
+    }
+    if (!latest) {
+      return item
+    }
+    const latestCreatedAt = new Date(latest.created_at).getTime()
+    if (!Number.isFinite(latestCreatedAt) || itemCreatedAt > latestCreatedAt) {
+      return item
+    }
+    return latest
+  }, null)
+}
+
+const openEditRegistry = (registry) => {
+  editingRegistry.value = registry
+  editForm.value = {
+    name: registry.name || '',
+    registry_url: registry.registry_url || '',
+  }
+  editErrors.value = {}
+  editRegistryError.value = ''
+}
+
+const closeEdit = () => {
+  editingRegistry.value = null
+  editForm.value = { name: '', registry_url: '' }
+  editErrors.value = {}
+  editRegistryError.value = ''
+}
+
+const handleUpdateRegistry = async () => {
+  if (!editingRegistry.value) {
+    return
+  }
+
+  editErrors.value = {}
+  editRegistryError.value = ''
+
+  const nameValue = editForm.value.name.trim()
+  const urlValue = editForm.value.registry_url.trim()
+  const hasNameChange = nameValue !== editingRegistry.value.name
+  const hasURLChange = urlValue !== editingRegistry.value.registry_url
+
+  if (hasNameChange && !nameValue) {
+    editErrors.value.name = 'Name is required.'
+  }
+  if (hasURLChange && !urlValue) {
+    editErrors.value.registry_url = 'Registry URL is required.'
+  }
+  if (!hasNameChange && !hasURLChange) {
+    editRegistryError.value = 'Make a change before saving.'
+    return
+  }
+  if (Object.keys(editErrors.value).length > 0) {
+    return
+  }
+
+  const payload = {}
+  if (hasNameChange) {
+    payload.name = nameValue
+  }
+  if (hasURLChange) {
+    payload.registry_url = urlValue
+  }
+
+  savingRegistry.value = true
+  try {
+    await updateRegistry(route.params.id, editingRegistry.value.id, payload)
+    closeEdit()
+    await fetchRegistries()
+  } catch (err) {
+    editRegistryError.value = err.message
+  } finally {
+    savingRegistry.value = false
+  }
 }
 
 const handleDelete = async () => {
