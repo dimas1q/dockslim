@@ -213,7 +213,7 @@ func (s *Service) buildUpdateParams(projectID, registryID uuid.UUID, input Updat
 			return UpdateRegistryParams{}, err
 		}
 		params.Username = &username
-		params.PasswordEnc = enc
+		params.PasswordEnc = &enc
 	}
 
 	return params, nil

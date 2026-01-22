@@ -38,7 +38,7 @@ type UpdateRegistryParams struct {
 	Name        *string
 	RegistryURL *string
 	Username    *string
-	PasswordEnc []byte
+	PasswordEnc *[]byte
 }
 
 func (r *Repository) GetActiveKey(ctx context.Context) (EncryptionKey, error) {
@@ -283,6 +283,10 @@ func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryPa
 	if params.Username != nil && *params.Username != "" {
 		username = sql.NullString{String: *params.Username, Valid: true}
 	}
+	var passwordEnc interface{}
+	if params.PasswordEnc != nil {
+		passwordEnc = *params.PasswordEnc
+	}
 
 	var registry Registry
 	var usernameOut sql.NullString
@@ -292,7 +296,7 @@ func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryPa
 		name,
 		registryURL,
 		username,
-		params.PasswordEnc,
+		passwordEnc,
 		params.RegistryID,
 		params.ProjectID,
 	).Scan(

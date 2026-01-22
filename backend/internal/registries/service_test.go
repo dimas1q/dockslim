@@ -11,6 +11,7 @@ import (
 type fakeRepo struct {
 	registries      []Registry
 	lastPasswordEnc []byte
+	lastUpdateEnc   *[]byte
 }
 
 func (f *fakeRepo) ListRegistriesByProject(ctx context.Context, projectID uuid.UUID) ([]Registry, error) {
@@ -36,6 +37,7 @@ func (f *fakeRepo) DeleteRegistry(ctx context.Context, projectID, registryID uui
 }
 
 func (f *fakeRepo) UpdateRegistry(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
+	f.lastUpdateEnc = params.PasswordEnc
 	for i, registry := range f.registries {
 		if registry.ID != params.RegistryID || registry.ProjectID != params.ProjectID {
 			continue
@@ -45,6 +47,9 @@ func (f *fakeRepo) UpdateRegistry(ctx context.Context, params UpdateRegistryPara
 		}
 		if params.RegistryURL != nil {
 			registry.RegistryURL = *params.RegistryURL
+		}
+		if params.Username != nil {
+			registry.Username = params.Username
 		}
 		f.registries[i] = registry
 		return registry, nil
@@ -111,4 +116,37 @@ func TestServiceListRegistriesNonMemberNotFound(t *testing.T) {
 	if err != ErrProjectNotFound {
 		t.Fatalf("expected ErrProjectNotFound, got %v", err)
 	}
+}
+
+func TestServiceUpdateRegistryDoesNotTouchPasswordOnMetadataChange(t *testing.T) {
+	projectID := uuid.New()
+	registryID := uuid.New()
+	repo := &fakeRepo{
+		registries: []Registry{
+			{
+				ID:          registryID,
+				ProjectID:   projectID,
+				Name:        "Registry",
+				Type:        TypeGeneric,
+				RegistryURL: "https://registry.example.com",
+			},
+		},
+	}
+	members := &fakeMembership{role: projects.RoleOwner}
+	service := NewService(repo, members, EncryptionKey{KeyMaterial: []byte("01234567890123456789012345678901")})
+
+	_, err := service.UpdateRegistry(context.Background(), uuid.New(), projectID, registryID, UpdateRegistryInput{
+		Name:        ptr("Updated Registry"),
+		RegistryURL: ptr("https://new.registry.example.com"),
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if repo.lastUpdateEnc != nil {
+		t.Fatalf("expected password not to be updated")
+	}
+}
+
+func ptr(value string) *string {
+	return &value
 }
