@@ -59,6 +59,9 @@ func (r *registryRepoStub) UpdateRegistry(ctx context.Context, params registries
 		if params.RegistryURL != nil {
 			registry.RegistryURL = *params.RegistryURL
 		}
+		if params.Username != nil {
+			registry.Username = params.Username
+		}
 		r.registries[i] = registry
 		return registry, nil
 	}

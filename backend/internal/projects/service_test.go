@@ -19,10 +19,13 @@ func newFakeRepo() *fakeRepo {
 	}
 }
 
-func (f *fakeRepo) CreateProjectWithOwner(ctx context.Context, name string, ownerID uuid.UUID) (Project, error) {
+func (f *fakeRepo) CreateProjectWithOwner(ctx context.Context, name string, description *string, ownerID uuid.UUID) (Project, error) {
 	project := Project{
 		ID:   uuid.New(),
 		Name: name,
+	}
+	if description != nil {
+		project.Description = description
 	}
 	f.projects[project.ID] = project
 	if f.members[project.ID] == nil {
@@ -69,13 +72,18 @@ func (f *fakeRepo) GetMemberRole(ctx context.Context, projectID, userID uuid.UUI
 	return role, nil
 }
 
-func (f *fakeRepo) UpdateProjectName(ctx context.Context, projectID uuid.UUID, name string) (Project, error) {
-	project, ok := f.projects[projectID]
+func (f *fakeRepo) UpdateProject(ctx context.Context, params UpdateProjectParams) (Project, error) {
+	project, ok := f.projects[params.ProjectID]
 	if !ok {
 		return Project{}, ErrProjectNotFound
 	}
-	project.Name = name
-	f.projects[projectID] = project
+	if params.Name != nil {
+		project.Name = *params.Name
+	}
+	if params.Description != nil {
+		project.Description = params.Description
+	}
+	f.projects[params.ProjectID] = project
 	return project, nil
 }
 
@@ -93,7 +101,7 @@ func TestServiceCreateProject(t *testing.T) {
 	service := NewService(repo)
 
 	ownerID := uuid.New()
-	project, err := service.CreateProject(context.Background(), ownerID, "  My Project  ")
+	project, err := service.CreateProject(context.Background(), ownerID, "  My Project  ", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -117,8 +125,8 @@ func TestServiceListProjectsFiltersByMember(t *testing.T) {
 	ownerID := uuid.New()
 	otherID := uuid.New()
 
-	projectA, _ := service.CreateProject(context.Background(), ownerID, "Project A")
-	projectB, _ := service.CreateProject(context.Background(), otherID, "Project B")
+	projectA, _ := service.CreateProject(context.Background(), ownerID, "Project A", nil)
+	projectB, _ := service.CreateProject(context.Background(), otherID, "Project B", nil)
 
 	projects, err := service.ListProjects(context.Background(), ownerID)
 	if err != nil {
@@ -141,7 +149,7 @@ func TestServiceGetProjectAsNonMemberReturnsNotFound(t *testing.T) {
 	service := NewService(repo)
 
 	ownerID := uuid.New()
-	project, _ := service.CreateProject(context.Background(), ownerID, "Private Project")
+	project, _ := service.CreateProject(context.Background(), ownerID, "Private Project", nil)
 
 	nonMemberID := uuid.New()
 	_, err := service.GetProject(context.Background(), nonMemberID, project.ID)

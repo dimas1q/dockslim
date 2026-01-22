@@ -131,12 +131,15 @@ func newMemoryProjectRepo() *memoryProjectRepo {
 	return &memoryProjectRepo{projects: make(map[uuid.UUID]projects.Project)}
 }
 
-func (m *memoryProjectRepo) CreateProjectWithOwner(ctx context.Context, name string, ownerID uuid.UUID) (projects.Project, error) {
+func (m *memoryProjectRepo) CreateProjectWithOwner(ctx context.Context, name string, description *string, ownerID uuid.UUID) (projects.Project, error) {
 	project := projects.Project{
 		ID:        uuid.New(),
 		Name:      name,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
+	}
+	if description != nil {
+		project.Description = description
 	}
 	m.projects[project.ID] = project
 	return project, nil
@@ -154,7 +157,7 @@ func (m *memoryProjectRepo) GetMemberRole(ctx context.Context, projectID, userID
 	return projects.RoleOwner, nil
 }
 
-func (m *memoryProjectRepo) UpdateProjectName(ctx context.Context, projectID uuid.UUID, name string) (projects.Project, error) {
+func (m *memoryProjectRepo) UpdateProject(ctx context.Context, params projects.UpdateProjectParams) (projects.Project, error) {
 	return projects.Project{}, projects.ErrProjectNotFound
 }
 

@@ -21,15 +21,22 @@ func NewProjectsHandler(service *projects.Service) *ProjectsHandler {
 }
 
 type projectRequest struct {
-	Name string `json:"name"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+type projectPatchRequest struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
 }
 
 type projectResponse struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Role      string    `json:"role,omitempty"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Role        string    `json:"role,omitempty"`
 }
 
 func (h *ProjectsHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +52,7 @@ func (h *ProjectsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.service.CreateProject(r.Context(), user.ID, req.Name)
+	project, err := h.service.CreateProject(r.Context(), user.ID, req.Name, req.Description)
 	if err != nil {
 		switch {
 		case errors.Is(err, projects.ErrInvalidProjectName):
@@ -129,18 +136,23 @@ func (h *ProjectsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req projectRequest
+	var req projectPatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	project, err := h.service.UpdateProjectName(r.Context(), user.ID, projectID, req.Name)
+	project, err := h.service.UpdateProject(r.Context(), user.ID, projectID, projects.UpdateProjectInput{
+		Name:        req.Name,
+		Description: req.Description,
+	})
 	if err != nil {
 		switch {
 		case errors.Is(err, projects.ErrProjectNotFound):
 			writeError(w, http.StatusNotFound, "project not found")
 		case errors.Is(err, projects.ErrInvalidProjectName):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, projects.ErrInvalidProjectPatch):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, projects.ErrNotOwner):
 			writeError(w, http.StatusForbidden, "forbidden")
@@ -188,10 +200,11 @@ func parseProjectID(r *http.Request) (uuid.UUID, error) {
 
 func toProjectResponse(project projects.Project) projectResponse {
 	return projectResponse{
-		ID:        project.ID.String(),
-		Name:      project.Name,
-		CreatedAt: project.CreatedAt,
-		UpdatedAt: project.UpdatedAt,
+		ID:          project.ID.String(),
+		Name:        project.Name,
+		Description: project.Description,
+		CreatedAt:   project.CreatedAt,
+		UpdatedAt:   project.UpdatedAt,
 	}
 }
 
