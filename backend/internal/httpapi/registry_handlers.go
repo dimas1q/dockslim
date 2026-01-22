@@ -28,6 +28,11 @@ type registryRequest struct {
 	Password    string `json:"password"`
 }
 
+type registryPatchRequest struct {
+	Name        *string `json:"name"`
+	RegistryURL *string `json:"registry_url"`
+}
+
 type registryResponse struct {
 	ID          string    `json:"id"`
 	ProjectID   string    `json:"project_id"`
@@ -151,6 +156,58 @@ func (h *RegistriesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *RegistriesHandler) Update(w http.ResponseWriter, r *http.Request) {
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	projectID, err := parseUUIDParam(r, "projectId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	registryID, err := parseUUIDParam(r, "registryId")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid registry id")
+		return
+	}
+
+	var req registryPatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	registry, err := h.service.UpdateRegistry(r.Context(), user.ID, projectID, registryID, registries.UpdateRegistryInput{
+		Name:        req.Name,
+		RegistryURL: req.RegistryURL,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, registries.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, registries.ErrNotOwner):
+			writeError(w, http.StatusForbidden, "forbidden")
+		case errors.Is(err, registries.ErrRegistryNotFound):
+			writeError(w, http.StatusNotFound, "registry not found")
+		case errors.Is(err, registries.ErrRegistryNameConflict):
+			writeError(w, http.StatusConflict, "registry with this name already exists")
+		case errors.Is(err, registries.ErrInvalidRegistryPatch),
+			errors.Is(err, registries.ErrInvalidRegistryName),
+			errors.Is(err, registries.ErrInvalidRegistryURL):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to update registry")
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toRegistryResponse(registry))
 }
 
 func parseUUIDParam(r *http.Request, name string) (uuid.UUID, error) {

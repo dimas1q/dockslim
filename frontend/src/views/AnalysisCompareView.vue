@@ -105,7 +105,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { compareAnalyses } from '../api/client'
 
@@ -137,7 +137,13 @@ const fetchComparison = async () => {
   }
 }
 
-onMounted(fetchComparison)
+watch(
+  () => [route.query.from, route.query.to],
+  () => {
+    fetchComparison()
+  },
+  { immediate: true },
+)
 
 const formatDate = (value) => {
   if (!value) return 'just now'

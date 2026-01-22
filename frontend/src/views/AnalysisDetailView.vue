@@ -31,6 +31,14 @@
             >
               {{ rerunning ? 'Re-running...' : 'Re-run analysis' }}
             </button>
+            <button
+              v-if="isOwner"
+              class="rounded-lg border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:border-rose-400 disabled:opacity-60"
+              :disabled="deleting"
+              @click="handleDeleteAnalysis"
+            >
+              {{ deleting ? 'Deleting...' : 'Delete analysis' }}
+            </button>
             <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass">
               {{ analysis?.status }}
             </span>
@@ -44,6 +52,7 @@
         </p>
         <p v-if="compareError" class="text-xs text-rose-400">{{ compareError }}</p>
         <p v-if="rerunError" class="text-sm text-rose-400">{{ rerunError }}</p>
+        <p v-if="deleteError" class="text-sm text-rose-400">{{ deleteError }}</p>
 
         <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300 mt-4">
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
@@ -213,7 +222,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { getAnalysis, getProject, listAnalyses, rerunAnalysis } from '../api/client'
+import { deleteAnalysis, getAnalysis, getProject, listAnalyses, rerunAnalysis } from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -227,6 +236,8 @@ const project = ref(null)
 const polling = ref(false)
 const rerunning = ref(false)
 const rerunError = ref('')
+const deleting = ref(false)
+const deleteError = ref('')
 const showRaw = ref(false)
 const analyses = ref([])
 const compareError = ref('')
@@ -286,22 +297,29 @@ const previousAnalysis = computed(() => {
     return null
   }
   const currentCreatedAt = new Date(analysis.value.created_at).getTime()
-  for (const item of analyses.value) {
-    if (item.id === analysis.value.id) {
-      continue
-    }
-    if (item.image !== analysis.value.image) {
-      continue
-    }
-    if (item.status !== 'completed') {
-      continue
-    }
-    if (new Date(item.created_at).getTime() >= currentCreatedAt) {
-      continue
-    }
-    return item
+  if (!Number.isFinite(currentCreatedAt)) {
+    return null
   }
-  return null
+  return analyses.value.reduce((latest, item) => {
+    if (item.id === analysis.value.id) {
+      return latest
+    }
+    if (item.image !== analysis.value.image || item.status !== 'completed') {
+      return latest
+    }
+    const itemCreatedAt = new Date(item.created_at).getTime()
+    if (!Number.isFinite(itemCreatedAt) || itemCreatedAt >= currentCreatedAt) {
+      return latest
+    }
+    if (!latest) {
+      return item
+    }
+    const latestCreatedAt = new Date(latest.created_at).getTime()
+    if (!Number.isFinite(latestCreatedAt) || itemCreatedAt > latestCreatedAt) {
+      return item
+    }
+    return latest
+  }, null)
 })
 
 const startPolling = () => {
@@ -506,5 +524,26 @@ const handleCompare = () => {
       to: analysisId,
     },
   })
+}
+
+const handleDeleteAnalysis = async () => {
+  if (!analysis.value?.id) {
+    return
+  }
+  const confirmed = window.confirm('Delete this analysis? This cannot be undone.')
+  if (!confirmed) {
+    return
+  }
+
+  deleteError.value = ''
+  deleting.value = true
+  try {
+    await deleteAnalysis(projectId, analysis.value.id)
+    router.push({ path: `/projects/${projectId}`, query: { analysisDeleted: '1' } })
+  } catch (err) {
+    deleteError.value = err.message
+  } finally {
+    deleting.value = false
+  }
 }
 </script>

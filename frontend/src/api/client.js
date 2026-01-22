@@ -100,6 +100,12 @@ export const deleteRegistry = (projectId, registryId) =>
     method: 'DELETE',
   })
 
+export const updateRegistry = (projectId, registryId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}/registries/${registryId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
 export const listAnalyses = (projectId) =>
   apiRequest(`/api/v1/projects/${projectId}/analyses`)
 

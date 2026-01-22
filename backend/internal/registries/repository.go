@@ -32,6 +32,13 @@ type CreateRegistryParams struct {
 	PasswordEnc []byte
 }
 
+type UpdateRegistryParams struct {
+	ProjectID   uuid.UUID
+	RegistryID  uuid.UUID
+	Name        *string
+	RegistryURL *string
+}
+
 func (r *Repository) GetActiveKey(ctx context.Context) (EncryptionKey, error) {
 	const query = `
 		SELECT id, key_id, key_material, is_active, created_at
@@ -248,4 +255,60 @@ func (r *Repository) DeleteRegistry(ctx context.Context, projectID, registryID u
 	}
 
 	return nil
+}
+
+func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
+	const query = `
+		UPDATE registries
+		SET name = COALESCE($1, name),
+			registry_url = COALESCE($2, registry_url),
+			updated_at = NOW()
+		WHERE id = $3 AND project_id = $4
+		RETURNING id, project_id, name, type, registry_url, username, created_at, updated_at
+	`
+
+	var name sql.NullString
+	if params.Name != nil && *params.Name != "" {
+		name = sql.NullString{String: *params.Name, Valid: true}
+	}
+	var registryURL sql.NullString
+	if params.RegistryURL != nil && *params.RegistryURL != "" {
+		registryURL = sql.NullString{String: *params.RegistryURL, Valid: true}
+	}
+
+	var registry Registry
+	var username sql.NullString
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		name,
+		registryURL,
+		params.RegistryID,
+		params.ProjectID,
+	).Scan(
+		&registry.ID,
+		&registry.ProjectID,
+		&registry.Name,
+		&registry.Type,
+		&registry.RegistryURL,
+		&username,
+		&registry.CreatedAt,
+		&registry.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Registry{}, ErrRegistryNotFound
+	}
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Registry{}, ErrRegistryNameConflict
+		}
+		return Registry{}, err
+	}
+
+	if username.Valid {
+		registry.Username = &username.String
+	}
+
+	return registry, nil
 }

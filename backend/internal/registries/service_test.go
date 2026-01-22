@@ -35,6 +35,23 @@ func (f *fakeRepo) DeleteRegistry(ctx context.Context, projectID, registryID uui
 	return nil
 }
 
+func (f *fakeRepo) UpdateRegistry(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
+	for i, registry := range f.registries {
+		if registry.ID != params.RegistryID || registry.ProjectID != params.ProjectID {
+			continue
+		}
+		if params.Name != nil {
+			registry.Name = *params.Name
+		}
+		if params.RegistryURL != nil {
+			registry.RegistryURL = *params.RegistryURL
+		}
+		f.registries[i] = registry
+		return registry, nil
+	}
+	return Registry{}, ErrRegistryNotFound
+}
+
 type fakeMembership struct {
 	role string
 	err  error

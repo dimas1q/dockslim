@@ -46,6 +46,7 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Route("/{projectId}/registries", func(r chi.Router) {
 					r.Get("/", deps.RegistriesHandler.List)
 					r.Post("/", deps.RegistriesHandler.Create)
+					r.Patch("/{registryId}", deps.RegistriesHandler.Update)
 					r.Delete("/{registryId}", deps.RegistriesHandler.Delete)
 				})
 				r.Route("/{projectId}/analyses", func(r chi.Router) {

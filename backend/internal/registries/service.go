@@ -11,16 +11,18 @@ import (
 )
 
 var (
-	ErrInvalidRegistryName = errors.New("invalid registry name")
-	ErrInvalidRegistryURL  = errors.New("invalid registry url")
-	ErrInvalidRegistryType = errors.New("invalid registry type")
-	ErrProjectNotFound     = errors.New("project not found")
-	ErrNotOwner            = errors.New("user is not project owner")
+	ErrInvalidRegistryName  = errors.New("invalid registry name")
+	ErrInvalidRegistryURL   = errors.New("invalid registry url")
+	ErrInvalidRegistryType  = errors.New("invalid registry type")
+	ErrInvalidRegistryPatch = errors.New("invalid registry patch")
+	ErrProjectNotFound      = errors.New("project not found")
+	ErrNotOwner             = errors.New("user is not project owner")
 )
 
 type RepositoryStore interface {
 	ListRegistriesByProject(ctx context.Context, projectID uuid.UUID) ([]Registry, error)
 	CreateRegistry(ctx context.Context, params CreateRegistryParams) (Registry, error)
+	UpdateRegistry(ctx context.Context, params UpdateRegistryParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, projectID, registryID uuid.UUID) error
 }
 
@@ -44,6 +46,11 @@ type CreateRegistryInput struct {
 	RegistryURL string
 	Username    string
 	Password    string
+}
+
+type UpdateRegistryInput struct {
+	Name        *string
+	RegistryURL *string
 }
 
 func (s *Service) ListRegistries(ctx context.Context, userID, projectID uuid.UUID) ([]Registry, error) {
@@ -93,6 +100,26 @@ func (s *Service) DeleteRegistry(ctx context.Context, userID, projectID, registr
 	return s.repo.DeleteRegistry(ctx, projectID, registryID)
 }
 
+func (s *Service) UpdateRegistry(ctx context.Context, userID, projectID, registryID uuid.UUID, input UpdateRegistryInput) (Registry, error) {
+	role, err := s.members.GetMemberRole(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, projects.ErrProjectMemberNotFound) {
+			return Registry{}, ErrProjectNotFound
+		}
+		return Registry{}, err
+	}
+	if role != projects.RoleOwner {
+		return Registry{}, ErrNotOwner
+	}
+
+	params, err := s.buildUpdateParams(projectID, registryID, input)
+	if err != nil {
+		return Registry{}, err
+	}
+
+	return s.repo.UpdateRegistry(ctx, params)
+}
+
 func (s *Service) buildCreateParams(projectID uuid.UUID, input CreateRegistryInput) (CreateRegistryParams, error) {
 	name, err := validateRegistryName(input.Name)
 	if err != nil {
@@ -137,6 +164,35 @@ func (s *Service) buildCreateParams(projectID uuid.UUID, input CreateRegistryInp
 	}, nil
 }
 
+func (s *Service) buildUpdateParams(projectID, registryID uuid.UUID, input UpdateRegistryInput) (UpdateRegistryParams, error) {
+	if input.Name == nil && input.RegistryURL == nil {
+		return UpdateRegistryParams{}, ErrInvalidRegistryPatch
+	}
+
+	params := UpdateRegistryParams{
+		ProjectID:  projectID,
+		RegistryID: registryID,
+	}
+
+	if input.Name != nil {
+		name, err := validateRegistryName(*input.Name)
+		if err != nil {
+			return UpdateRegistryParams{}, err
+		}
+		params.Name = &name
+	}
+
+	if input.RegistryURL != nil {
+		registryURL, err := validateRegistryURL(*input.RegistryURL)
+		if err != nil {
+			return UpdateRegistryParams{}, err
+		}
+		params.RegistryURL = &registryURL
+	}
+
+	return params, nil
+}
+
 func validateRegistryName(name string) (string, error) {
 	clean := strings.TrimSpace(name)
 	if len(clean) < 2 || len(clean) > 100 {
@@ -152,6 +208,9 @@ func validateRegistryURL(raw string) (string, error) {
 	}
 	parsed, err := url.ParseRequestURI(clean)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", ErrInvalidRegistryURL
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return "", ErrInvalidRegistryURL
 	}
 	return clean, nil

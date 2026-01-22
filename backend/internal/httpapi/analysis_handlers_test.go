@@ -400,19 +400,19 @@ func TestAnalysesHandlerCompareDiff(t *testing.T) {
 
 	var response struct {
 		Summary struct {
-			TotalSizeDiffBytes int64 `json:\"total_size_diff_bytes\"`
-			LayerCountDiff     int   `json:\"layer_count_diff\"`
-		} `json:\"summary\"`
+			TotalSizeDiffBytes int64 `json:"total_size_diff_bytes"`
+			LayerCountDiff     int   `json:"layer_count_diff"`
+		} `json:"summary"`
 		Layers struct {
 			Added []struct {
-				Digest    string `json:\"digest\"`
-				SizeBytes int64  `json:\"size_bytes\"`
-			} `json:\"added\"`
+				Digest    string `json:"digest"`
+				SizeBytes int64  `json:"size_bytes"`
+			} `json:"added"`
 			Removed []struct {
-				Digest    string `json:\"digest\"`
-				SizeBytes int64  `json:\"size_bytes\"`
-			} `json:\"removed\"`
-		} `json:\"layers\"`
+				Digest    string `json:"digest"`
+				SizeBytes int64  `json:"size_bytes"`
+			} `json:"removed"`
+		} `json:"layers"`
 	}
 	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
