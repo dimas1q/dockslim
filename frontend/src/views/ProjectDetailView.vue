@@ -7,11 +7,13 @@
     <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
       <p v-if="loading" class="text-sm text-slate-400">Loading project...</p>
       <p v-else-if="error" class="text-sm text-red-400">{{ error }}</p>
-      <div v-else>
+      <div v-else class="space-y-4">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 class="text-2xl font-semibold">{{ project?.name }}</h2>
-            <p class="text-slate-400 mt-2">Project details coming soon.</p>
+            <h2 class="text-2xl font-semibold">Project settings</h2>
+            <p class="text-slate-400 mt-2">
+              Update the project name and description for your team.
+            </p>
           </div>
           <button
             v-if="isOwner"
@@ -22,6 +24,47 @@
             {{ deleting ? 'Deleting...' : 'Delete project' }}
           </button>
         </div>
+        <form class="grid gap-4 md:grid-cols-2" @submit.prevent="handleUpdateProject">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Project name</label>
+            <input
+              v-model="settingsForm.name"
+              type="text"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              :disabled="!isOwner"
+            />
+            <p v-if="settingsErrors.name" class="text-xs text-red-400">
+              {{ settingsErrors.name }}
+            </p>
+          </div>
+          <div class="space-y-1 md:col-span-2">
+            <label class="text-xs text-slate-400">Description (optional)</label>
+            <textarea
+              v-model="settingsForm.description"
+              rows="3"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              :disabled="!isOwner"
+              placeholder="Add context for the team or notes about this project."
+            ></textarea>
+          </div>
+          <div class="md:col-span-2 flex items-center gap-3">
+            <button
+              v-if="isOwner"
+              type="submit"
+              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+              :disabled="savingProject || !settingsDirty"
+            >
+              {{ savingProject ? 'Saving...' : 'Save settings' }}
+            </button>
+            <span v-if="settingsSuccess" class="text-xs text-emerald-400">
+              {{ settingsSuccess }}
+            </span>
+          </div>
+        </form>
+        <p v-if="settingsError" class="text-sm text-red-400">{{ settingsError }}</p>
+        <p v-if="!isOwner && project" class="text-xs text-slate-500">
+          Only project owners can update settings.
+        </p>
         <p v-if="deleteError" class="text-sm text-red-400">{{ deleteError }}</p>
       </div>
     </div>
@@ -195,7 +238,35 @@
                 {{ editErrors.registry_url }}
               </p>
             </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400">Username</label>
+              <input
+                v-model="editForm.username"
+                type="text"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+                placeholder="ci-bot"
+              />
+              <p v-if="editErrors.username" class="text-xs text-red-400">
+                {{ editErrors.username }}
+              </p>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400">Token</label>
+              <input
+                v-model="editForm.token"
+                type="password"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+                placeholder="••••••••"
+              />
+              <p class="text-xs text-slate-500">Leave token empty to keep existing credentials.</p>
+              <p v-if="editErrors.token" class="text-xs text-red-400">
+                {{ editErrors.token }}
+              </p>
+            </div>
             <p v-if="editRegistryError" class="text-sm text-red-400">{{ editRegistryError }}</p>
+            <p v-if="editRegistrySuccess" class="text-sm text-emerald-400">
+              {{ editRegistrySuccess }}
+            </p>
             <div class="flex items-center justify-end gap-3">
               <button
                 type="button"
@@ -390,6 +461,7 @@ import {
   getProject,
   listAnalyses,
   listRegistries,
+  updateProject,
   updateRegistry,
 } from '../api/client'
 
@@ -403,6 +475,10 @@ const deleteError = ref('')
 const registries = ref([])
 const registriesLoading = ref(false)
 const registriesError = ref('')
+const savingProject = ref(false)
+const settingsError = ref('')
+const settingsSuccess = ref('')
+const settingsErrors = ref({})
 const analyses = ref([])
 const analysesLoading = ref(false)
 const analysesError = ref('')
@@ -413,15 +489,17 @@ const createRegistryError = ref('')
 const deletingRegistryId = ref(null)
 const deletingAnalysisId = ref(null)
 const editingRegistry = ref(null)
-const editForm = ref({ name: '', registry_url: '' })
+const editForm = ref({ name: '', registry_url: '', username: '', token: '' })
 const editErrors = ref({})
 const savingRegistry = ref(false)
 const editRegistryError = ref('')
+const editRegistrySuccess = ref('')
 const fieldErrors = ref({})
 const showAnalysisForm = ref(false)
 const creatingAnalysis = ref(false)
 const createAnalysisError = ref('')
 const analysisErrors = ref({})
+const settingsForm = ref({ name: '', description: '' })
 let pollTimer = null
 
 const form = ref({
@@ -441,12 +519,33 @@ const isOwner = computed(() => project.value?.role === 'owner')
 const hasActiveAnalyses = computed(() =>
   analyses.value.some((analysis) => ['queued', 'running'].includes(analysis.status)),
 )
+const settingsDirty = computed(() => {
+  if (!project.value) {
+    return false
+  }
+  const nameValue = settingsForm.value.name.trim()
+  const descriptionValue = settingsForm.value.description.trim()
+  const currentDescription = project.value.description || ''
+  return nameValue !== project.value.name || descriptionValue !== currentDescription
+})
+
+const syncSettingsForm = () => {
+  if (!project.value) {
+    settingsForm.value = { name: '', description: '' }
+    return
+  }
+  settingsForm.value = {
+    name: project.value.name || '',
+    description: project.value.description || '',
+  }
+}
 
 const fetchProject = async () => {
   loading.value = true
   error.value = ''
   try {
     project.value = await getProject(route.params.id)
+    syncSettingsForm()
     await fetchRegistries()
     await fetchAnalyses()
   } catch (err) {
@@ -720,16 +819,20 @@ const openEditRegistry = (registry) => {
   editForm.value = {
     name: registry.name || '',
     registry_url: registry.registry_url || '',
+    username: registry.username || '',
+    token: '',
   }
   editErrors.value = {}
   editRegistryError.value = ''
+  editRegistrySuccess.value = ''
 }
 
 const closeEdit = () => {
   editingRegistry.value = null
-  editForm.value = { name: '', registry_url: '' }
+  editForm.value = { name: '', registry_url: '', username: '', token: '' }
   editErrors.value = {}
   editRegistryError.value = ''
+  editRegistrySuccess.value = ''
 }
 
 const handleUpdateRegistry = async () => {
@@ -739,11 +842,17 @@ const handleUpdateRegistry = async () => {
 
   editErrors.value = {}
   editRegistryError.value = ''
+  editRegistrySuccess.value = ''
 
   const nameValue = editForm.value.name.trim()
   const urlValue = editForm.value.registry_url.trim()
+  const usernameValue = editForm.value.username.trim()
+  const tokenValue = editForm.value.token.trim()
   const hasNameChange = nameValue !== editingRegistry.value.name
   const hasURLChange = urlValue !== editingRegistry.value.registry_url
+  const currentUsername = editingRegistry.value.username || ''
+  const hasUsernameChange = usernameValue !== currentUsername
+  const wantsCredentialUpdate = tokenValue !== '' || hasUsernameChange
 
   if (hasNameChange && !nameValue) {
     editErrors.value.name = 'Name is required.'
@@ -751,9 +860,17 @@ const handleUpdateRegistry = async () => {
   if (hasURLChange && !urlValue) {
     editErrors.value.registry_url = 'Registry URL is required.'
   }
+  if (wantsCredentialUpdate && !usernameValue) {
+    editErrors.value.username = 'Username is required to update credentials.'
+  }
+  if (wantsCredentialUpdate && !tokenValue) {
+    editErrors.value.token = 'Token is required to update credentials.'
+  }
   if (!hasNameChange && !hasURLChange) {
-    editRegistryError.value = 'Make a change before saving.'
-    return
+    if (!wantsCredentialUpdate) {
+      editRegistryError.value = 'Make a change before saving.'
+      return
+    }
   }
   if (Object.keys(editErrors.value).length > 0) {
     return
@@ -766,11 +883,22 @@ const handleUpdateRegistry = async () => {
   if (hasURLChange) {
     payload.registry_url = urlValue
   }
+  if (wantsCredentialUpdate) {
+    payload.username = usernameValue
+    payload.token = tokenValue
+  }
 
   savingRegistry.value = true
   try {
-    await updateRegistry(route.params.id, editingRegistry.value.id, payload)
-    closeEdit()
+    const updated = await updateRegistry(route.params.id, editingRegistry.value.id, payload)
+    editingRegistry.value = updated
+    editForm.value = {
+      name: updated.name || '',
+      registry_url: updated.registry_url || '',
+      username: updated.username || '',
+      token: '',
+    }
+    editRegistrySuccess.value = 'Saved.'
     await fetchRegistries()
   } catch (err) {
     editRegistryError.value = err.message
@@ -797,6 +925,51 @@ const handleDelete = async () => {
     deleteError.value = err.message
   } finally {
     deleting.value = false
+  }
+}
+
+const handleUpdateProject = async () => {
+  if (!project.value || !isOwner.value) {
+    return
+  }
+  settingsErrors.value = {}
+  settingsError.value = ''
+  settingsSuccess.value = ''
+
+  const nameValue = settingsForm.value.name.trim()
+  const descriptionValue = settingsForm.value.description.trim()
+
+  if (!nameValue) {
+    settingsErrors.value.name = 'Project name is required.'
+  }
+
+  if (Object.keys(settingsErrors.value).length > 0) {
+    return
+  }
+
+  const payload = {}
+  if (nameValue !== project.value.name) {
+    payload.name = nameValue
+  }
+  if (descriptionValue !== (project.value.description || '')) {
+    payload.description = descriptionValue
+  }
+
+  if (Object.keys(payload).length === 0) {
+    settingsError.value = 'Make a change before saving.'
+    return
+  }
+
+  savingProject.value = true
+  try {
+    const updated = await updateProject(project.value.id, payload)
+    project.value = { ...project.value, ...updated }
+    syncSettingsForm()
+    settingsSuccess.value = 'Saved.'
+  } catch (err) {
+    settingsError.value = err.message
+  } finally {
+    savingProject.value = false
   }
 }
 </script>

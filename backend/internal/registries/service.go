@@ -15,6 +15,7 @@ var (
 	ErrInvalidRegistryURL   = errors.New("invalid registry url")
 	ErrInvalidRegistryType  = errors.New("invalid registry type")
 	ErrInvalidRegistryPatch = errors.New("invalid registry patch")
+	ErrInvalidRegistryCreds = errors.New("invalid registry credentials")
 	ErrProjectNotFound      = errors.New("project not found")
 	ErrNotOwner             = errors.New("user is not project owner")
 )
@@ -51,6 +52,8 @@ type CreateRegistryInput struct {
 type UpdateRegistryInput struct {
 	Name        *string
 	RegistryURL *string
+	Username    *string
+	Token       *string
 }
 
 func (s *Service) ListRegistries(ctx context.Context, userID, projectID uuid.UUID) ([]Registry, error) {
@@ -165,7 +168,7 @@ func (s *Service) buildCreateParams(projectID uuid.UUID, input CreateRegistryInp
 }
 
 func (s *Service) buildUpdateParams(projectID, registryID uuid.UUID, input UpdateRegistryInput) (UpdateRegistryParams, error) {
-	if input.Name == nil && input.RegistryURL == nil {
+	if input.Name == nil && input.RegistryURL == nil && input.Username == nil && input.Token == nil {
 		return UpdateRegistryParams{}, ErrInvalidRegistryPatch
 	}
 
@@ -188,6 +191,29 @@ func (s *Service) buildUpdateParams(projectID, registryID uuid.UUID, input Updat
 			return UpdateRegistryParams{}, err
 		}
 		params.RegistryURL = &registryURL
+	}
+
+	if input.Username != nil || input.Token != nil {
+		if input.Username == nil || input.Token == nil {
+			return UpdateRegistryParams{}, ErrInvalidRegistryCreds
+		}
+		username := strings.TrimSpace(*input.Username)
+		if username == "" {
+			return UpdateRegistryParams{}, ErrInvalidRegistryCreds
+		}
+		token := strings.TrimSpace(*input.Token)
+		if token == "" {
+			return UpdateRegistryParams{}, ErrInvalidRegistryCreds
+		}
+		if len(s.activeKey.KeyMaterial) == 0 {
+			return UpdateRegistryParams{}, ErrInvalidEncryptionKey
+		}
+		enc, err := EncryptSecret(s.activeKey.KeyMaterial, token)
+		if err != nil {
+			return UpdateRegistryParams{}, err
+		}
+		params.Username = &username
+		params.PasswordEnc = enc
 	}
 
 	return params, nil

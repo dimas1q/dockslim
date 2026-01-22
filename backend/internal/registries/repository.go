@@ -37,6 +37,8 @@ type UpdateRegistryParams struct {
 	RegistryID  uuid.UUID
 	Name        *string
 	RegistryURL *string
+	Username    *string
+	PasswordEnc []byte
 }
 
 func (r *Repository) GetActiveKey(ctx context.Context) (EncryptionKey, error) {
@@ -262,8 +264,10 @@ func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryPa
 		UPDATE registries
 		SET name = COALESCE($1, name),
 			registry_url = COALESCE($2, registry_url),
+			username = COALESCE($3, username),
+			password_enc = COALESCE($4, password_enc),
 			updated_at = NOW()
-		WHERE id = $3 AND project_id = $4
+		WHERE id = $5 AND project_id = $6
 		RETURNING id, project_id, name, type, registry_url, username, created_at, updated_at
 	`
 
@@ -275,14 +279,20 @@ func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryPa
 	if params.RegistryURL != nil && *params.RegistryURL != "" {
 		registryURL = sql.NullString{String: *params.RegistryURL, Valid: true}
 	}
+	var username sql.NullString
+	if params.Username != nil && *params.Username != "" {
+		username = sql.NullString{String: *params.Username, Valid: true}
+	}
 
 	var registry Registry
-	var username sql.NullString
+	var usernameOut sql.NullString
 	err := r.db.QueryRowContext(
 		ctx,
 		query,
 		name,
 		registryURL,
+		username,
+		params.PasswordEnc,
 		params.RegistryID,
 		params.ProjectID,
 	).Scan(
@@ -291,7 +301,7 @@ func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryPa
 		&registry.Name,
 		&registry.Type,
 		&registry.RegistryURL,
-		&username,
+		&usernameOut,
 		&registry.CreatedAt,
 		&registry.UpdatedAt,
 	)
@@ -306,8 +316,8 @@ func (r *Repository) UpdateRegistry(ctx context.Context, params UpdateRegistryPa
 		return Registry{}, err
 	}
 
-	if username.Valid {
-		registry.Username = &username.String
+	if usernameOut.Valid {
+		registry.Username = &usernameOut.String
 	}
 
 	return registry, nil

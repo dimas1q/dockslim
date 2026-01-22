@@ -81,6 +81,12 @@ export const createProject = (payload) =>
 
 export const getProject = (projectId) => apiRequest(`/api/v1/projects/${projectId}`)
 
+export const updateProject = (projectId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
 export const deleteProject = (projectId) =>
   apiRequest(`/api/v1/projects/${projectId}`, {
     method: 'DELETE',

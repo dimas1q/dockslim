@@ -31,6 +31,8 @@ type registryRequest struct {
 type registryPatchRequest struct {
 	Name        *string `json:"name"`
 	RegistryURL *string `json:"registry_url"`
+	Username    *string `json:"username"`
+	Token       *string `json:"token"`
 }
 
 type registryResponse struct {
@@ -186,6 +188,8 @@ func (h *RegistriesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	registry, err := h.service.UpdateRegistry(r.Context(), user.ID, projectID, registryID, registries.UpdateRegistryInput{
 		Name:        req.Name,
 		RegistryURL: req.RegistryURL,
+		Username:    req.Username,
+		Token:       req.Token,
 	})
 	if err != nil {
 		switch {
@@ -198,6 +202,7 @@ func (h *RegistriesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, registries.ErrRegistryNameConflict):
 			writeError(w, http.StatusConflict, "registry with this name already exists")
 		case errors.Is(err, registries.ErrInvalidRegistryPatch),
+			errors.Is(err, registries.ErrInvalidRegistryCreds),
 			errors.Is(err, registries.ErrInvalidRegistryName),
 			errors.Is(err, registries.ErrInvalidRegistryURL):
 			writeError(w, http.StatusBadRequest, err.Error())
