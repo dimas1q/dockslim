@@ -11,12 +11,14 @@ import (
 )
 
 var (
-	ErrProjectNotFound  = errors.New("project not found")
-	ErrNotOwner         = errors.New("user is not project owner")
-	ErrInvalidImage     = errors.New("invalid image")
-	ErrInvalidRegistry  = errors.New("invalid registry")
-	ErrRegistryMismatch = errors.New("image registry does not match selected registry")
-	ErrAnalysisRunning  = errors.New("analysis is running")
+	ErrProjectNotFound        = errors.New("project not found")
+	ErrNotOwner               = errors.New("user is not project owner")
+	ErrInvalidImage           = errors.New("invalid image")
+	ErrInvalidRegistry        = errors.New("invalid registry")
+	ErrRegistryMismatch       = errors.New("image registry does not match selected registry")
+	ErrAnalysisRunning        = errors.New("analysis is running")
+	ErrAnalysesDifferentImage = errors.New("analyses must be for the same image")
+	ErrAnalysesNotCompleted   = errors.New("both analyses must be completed")
 )
 
 type RepositoryStore interface {
@@ -151,4 +153,32 @@ func (s *Service) RerunAnalysis(ctx context.Context, userID, projectID, analysis
 	}
 
 	return s.repo.RerunAnalysis(ctx, projectID, analysisID)
+}
+
+func (s *Service) CompareAnalyses(ctx context.Context, userID, projectID, fromID, toID uuid.UUID) (Comparison, error) {
+	_, err := s.members.GetMemberRole(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, projects.ErrProjectMemberNotFound) {
+			return Comparison{}, ErrProjectNotFound
+		}
+		return Comparison{}, err
+	}
+
+	fromAnalysis, err := s.repo.GetAnalysisForProject(ctx, projectID, fromID)
+	if err != nil {
+		return Comparison{}, err
+	}
+	toAnalysis, err := s.repo.GetAnalysisForProject(ctx, projectID, toID)
+	if err != nil {
+		return Comparison{}, err
+	}
+
+	if fromAnalysis.Image != toAnalysis.Image {
+		return Comparison{}, ErrAnalysesDifferentImage
+	}
+	if fromAnalysis.Status != StatusCompleted || toAnalysis.Status != StatusCompleted {
+		return Comparison{}, ErrAnalysesNotCompleted
+	}
+
+	return BuildComparison(fromAnalysis, toAnalysis)
 }

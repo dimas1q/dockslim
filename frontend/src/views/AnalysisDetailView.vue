@@ -17,6 +17,13 @@
           </div>
           <div class="flex items-center gap-3">
             <button
+              v-if="analysis?.status === 'completed' && previousAnalysis"
+              class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+              @click="handleCompare"
+            >
+              Compare
+            </button>
+            <button
               v-if="isOwner"
               class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-60"
               :disabled="rerunning"
@@ -29,6 +36,13 @@
             </span>
           </div>
         </div>
+        <p
+          v-if="analysis?.status === 'completed' && !previousAnalysis"
+          class="text-xs text-slate-400"
+        >
+          No previous completed analysis to compare.
+        </p>
+        <p v-if="compareError" class="text-xs text-rose-400">{{ compareError }}</p>
         <p v-if="rerunError" class="text-sm text-rose-400">{{ rerunError }}</p>
 
         <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300 mt-4">
@@ -198,10 +212,11 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { getAnalysis, getProject, rerunAnalysis } from '../api/client'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { getAnalysis, getProject, listAnalyses, rerunAnalysis } from '../api/client'
 
 const route = useRoute()
+const router = useRouter()
 const projectId = route.params.id
 const analysisId = route.params.analysisId
 
@@ -213,7 +228,18 @@ const polling = ref(false)
 const rerunning = ref(false)
 const rerunError = ref('')
 const showRaw = ref(false)
+const analyses = ref([])
+const compareError = ref('')
 let pollTimer = null
+
+const fetchAnalyses = async () => {
+  compareError.value = ''
+  try {
+    analyses.value = await listAnalyses(projectId)
+  } catch (err) {
+    compareError.value = err.message
+  }
+}
 
 const fetchAnalysis = async ({ silent = false } = {}) => {
   if (!silent) {
@@ -222,6 +248,9 @@ const fetchAnalysis = async ({ silent = false } = {}) => {
   error.value = ''
   try {
     analysis.value = await getAnalysis(projectId, analysisId)
+    if (!silent) {
+      await fetchAnalyses()
+    }
   } catch (err) {
     error.value = err.message
   } finally {
@@ -251,6 +280,29 @@ onBeforeUnmount(() => {
 
 const isActive = computed(() => ['queued', 'running'].includes(analysis.value?.status))
 const isOwner = computed(() => project.value?.role === 'owner')
+
+const previousAnalysis = computed(() => {
+  if (!analysis.value || !analysis.value.created_at) {
+    return null
+  }
+  const currentCreatedAt = new Date(analysis.value.created_at).getTime()
+  for (const item of analyses.value) {
+    if (item.id === analysis.value.id) {
+      continue
+    }
+    if (item.image !== analysis.value.image) {
+      continue
+    }
+    if (item.status !== 'completed') {
+      continue
+    }
+    if (new Date(item.created_at).getTime() >= currentCreatedAt) {
+      continue
+    }
+    return item
+  }
+  return null
+})
 
 const startPolling = () => {
   if (pollTimer) {
@@ -441,5 +493,18 @@ const handleRerun = async () => {
   } finally {
     rerunning.value = false
   }
+}
+
+const handleCompare = () => {
+  if (!previousAnalysis.value) {
+    return
+  }
+  router.push({
+    path: `/projects/${projectId}/analyses/compare`,
+    query: {
+      from: previousAnalysis.value.id,
+      to: analysisId,
+    },
+  })
 }
 </script>
