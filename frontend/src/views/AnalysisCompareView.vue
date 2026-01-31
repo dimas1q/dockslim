@@ -26,7 +26,7 @@
           </p>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-3 mt-6">
+        <div class="grid gap-4 md:grid-cols-4 mt-6">
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
             <p class="text-xs text-slate-500">Total size change</p>
             <p class="mt-1 text-lg font-semibold" :class="sizeChangeClass">
@@ -47,6 +47,27 @@
             >
               {{ impactLabel }}
             </span>
+          </div>
+          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="text-xs text-slate-500">Budget verdict</p>
+              <span
+                class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                :class="budgetBadgeClass"
+              >
+                {{ budgetStatusLabel }}
+              </span>
+            </div>
+            <div v-if="budgetReasons.length" class="space-y-1">
+              <p class="text-xs text-slate-500">Reasons</p>
+              <ul class="text-xs text-slate-200 list-disc list-inside space-y-0.5">
+                <li v-for="reason in budgetReasons" :key="reason">{{ reason }}</li>
+              </ul>
+            </div>
+            <p v-else class="text-xs text-slate-500">No budget configured.</p>
+            <p v-if="budgetThresholdLabel" class="text-[11px] text-slate-500">
+              Thresholds: {{ budgetThresholdLabel }}
+            </p>
           </div>
         </div>
 
@@ -176,6 +197,7 @@ const shortDigest = (value) => {
 
 const totalSizeDiff = computed(() => comparison.value?.summary?.total_size_diff_bytes ?? 0)
 const layerCountDiff = computed(() => comparison.value?.summary?.layer_count_diff ?? 0)
+const budgetResult = computed(() => comparison.value?.budget)
 
 const totalSizeDiffLabel = computed(() => {
   const diff = totalSizeDiff.value
@@ -209,4 +231,44 @@ const sizeChangeClass = computed(() => {
 
 const addedLayers = computed(() => comparison.value?.layers?.added ?? [])
 const removedLayers = computed(() => comparison.value?.layers?.removed ?? [])
+
+const budgetStatusLabel = computed(() => {
+  const status = budgetResult.value?.status
+  if (!status) return 'No budget'
+  switch (status) {
+    case 'fail':
+      return 'FAIL'
+    case 'warn':
+      return 'WARN'
+    default:
+      return 'OK'
+  }
+})
+
+const budgetBadgeClass = computed(() => {
+  const status = budgetResult.value?.status
+  if (status === 'fail') return 'bg-rose-500/20 text-rose-200'
+  if (status === 'warn') return 'bg-amber-500/20 text-amber-200'
+  if (status === 'ok') return 'bg-emerald-500/20 text-emerald-200'
+  return 'bg-slate-700/60 text-slate-200'
+})
+
+const budgetReasons = computed(() => budgetResult.value?.reasons ?? [])
+
+const formatMB = (bytes) => {
+  if (bytes === null || bytes === undefined) return null
+  return Math.round(Number(bytes) / (1024 * 1024))
+}
+
+const budgetThresholdLabel = computed(() => {
+  if (!budgetResult.value) return ''
+  const warn = formatMB(budgetResult.value.warn_delta_bytes)
+  const fail = formatMB(budgetResult.value.fail_delta_bytes)
+  const hard = formatMB(budgetResult.value.hard_limit_bytes)
+  const parts = []
+  if (warn !== null) parts.push(`warn +${warn} MB`)
+  if (fail !== null) parts.push(`fail +${fail} MB`)
+  if (hard !== null) parts.push(`hard ${hard} MB`)
+  return parts.join(' · ')
+})
 </script>

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dimas1q/dockslim/backend/internal/analyses"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
+	"github.com/dimas1q/dockslim/backend/internal/budgets"
 	"github.com/dimas1q/dockslim/backend/internal/projects"
 	"github.com/dimas1q/dockslim/backend/internal/registries"
 	"github.com/go-chi/chi/v5"
@@ -116,6 +117,15 @@ type analysisMembershipStub struct {
 	err  error
 }
 
+type budgetResolverStub struct {
+	resolved *budgets.ResolvedBudget
+	err      error
+}
+
+func (b *budgetResolverStub) ResolveBudget(ctx context.Context, userID, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error) {
+	return b.resolved, b.err
+}
+
 func (m *analysisMembershipStub) GetMemberRole(ctx context.Context, projectID, userID uuid.UUID) (string, error) {
 	if m.err != nil {
 		return "", m.err
@@ -129,7 +139,7 @@ func TestAnalysesHandlerCreateOwnerOnly(t *testing.T) {
 	repo := &analysisRepoStub{}
 	members := &analysisMembershipStub{role: "member"}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	payload := map[string]string{
@@ -160,7 +170,7 @@ func TestAnalysesHandlerCreateRegistryMismatch(t *testing.T) {
 	repo := &analysisRepoStub{}
 	members := &analysisMembershipStub{role: projects.RoleOwner}
 	registryStore := &registryStoreStub{err: registries.ErrRegistryNotFound}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	payload := map[string]string{
@@ -191,7 +201,7 @@ func TestAnalysesHandlerListMemberOnly(t *testing.T) {
 	repo := &analysisRepoStub{}
 	members := &analysisMembershipStub{err: projects.ErrProjectMemberNotFound}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses", nil)
@@ -223,7 +233,7 @@ func TestAnalysesHandlerGetIncludesRecommendations(t *testing.T) {
 	}
 	members := &analysisMembershipStub{role: projects.RoleOwner}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/"+analysisID.String(), nil)
@@ -262,7 +272,7 @@ func TestAnalysesHandlerCompareMemberOnly(t *testing.T) {
 	repo := &analysisCompareRepoStub{analyses: map[uuid.UUID]analyses.ImageAnalysis{}}
 	members := &analysisMembershipStub{err: projects.ErrProjectMemberNotFound}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+uuid.New().String()+"&to="+uuid.New().String(), nil)
@@ -300,7 +310,7 @@ func TestAnalysesHandlerCompareDifferentImages(t *testing.T) {
 	}
 	members := &analysisMembershipStub{role: projects.RoleOwner}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+fromID.String()+"&to="+toID.String(), nil)
@@ -338,7 +348,7 @@ func TestAnalysesHandlerCompareRequiresCompleted(t *testing.T) {
 	}
 	members := &analysisMembershipStub{role: projects.RoleOwner}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+fromID.String()+"&to="+toID.String(), nil)
@@ -384,7 +394,7 @@ func TestAnalysesHandlerCompareDiff(t *testing.T) {
 	}
 	members := &analysisMembershipStub{role: projects.RoleOwner}
 	registryStore := &registryStoreStub{}
-	service := analyses.NewService(repo, members, registryStore)
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
 	handler := NewAnalysesHandler(service)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/compare?from="+fromID.String()+"&to="+toID.String(), nil)
