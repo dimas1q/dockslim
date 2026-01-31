@@ -116,6 +116,27 @@ curl -b /tmp/dockslim.cookies \
 
 In the frontend, open a completed analysis or the project analyses list and use the Compare action to see the size and layer diff between two completed analyses of the same image.
 
+### Budgets / Limits
+
+Budgets let you set size guardrails per project (default) and per image override. Verdicts appear on the Compare view (OK/WARN/FAIL) and API.
+
+Endpoints (all project owners only for mutations):
+- `GET /api/v1/projects/{projectId}/budgets` – fetch default + overrides.
+- `PUT /api/v1/projects/{projectId}/budgets/default` – upsert default thresholds `{warn_delta_mb?, fail_delta_mb?, hard_limit_mb?}`.
+- `POST /api/v1/projects/{projectId}/budgets/overrides` – create override `{image, warn_delta_mb?, fail_delta_mb?, hard_limit_mb?}`.
+- `PATCH /api/v1/projects/{projectId}/budgets/overrides/{budgetId}` – update override.
+- `DELETE /api/v1/projects/{projectId}/budgets/overrides/{budgetId}` – delete override.
+
+Rules:
+- Thresholds are in MB on the API; stored as bytes.
+- Warnings trigger on regression > `warn_delta_mb`; FAIL on `fail_delta_mb` or exceeding `hard_limit_mb`.
+- Per-image override wins over project default.
+- Duplicate project name, registry name, or budget override returns HTTP 409 with a descriptive error.
+
+Frontend:
+- Project Settings → “Budgets” section: edit default thresholds and per-image overrides (owners only, others read-only).
+- Compare page now shows “Budget verdict” badge and reasons alongside the Impact card.
+
 ### Analyzer Worker
 
 ```bash

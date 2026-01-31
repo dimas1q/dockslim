@@ -921,11 +921,19 @@ const handleCreateRegistry = async () => {
   fieldErrors.value = {}
   createRegistryError.value = ''
 
-  if (!form.value.name.trim()) {
+  const nameValue = form.value.name.trim()
+  const urlValue = form.value.registry_url.trim()
+
+  if (!nameValue) {
     fieldErrors.value.name = 'Name is required.'
   }
-  if (!form.value.registry_url.trim()) {
+  if (!urlValue) {
     fieldErrors.value.registry_url = 'Registry URL is required.'
+  }
+
+  const duplicate = registries.value.find((r) => r.name === nameValue)
+  if (!fieldErrors.value.name && duplicate) {
+    fieldErrors.value.name = 'Registry with this name already exists.'
   }
 
   if (Object.keys(fieldErrors.value).length > 0) {
@@ -935,9 +943,9 @@ const handleCreateRegistry = async () => {
   creatingRegistry.value = true
   try {
     await createRegistry(route.params.id, {
-      name: form.value.name,
+      name: nameValue,
       type: 'generic',
-      registry_url: form.value.registry_url,
+      registry_url: urlValue,
       username: form.value.username,
       password: form.value.password,
     })
@@ -1033,8 +1041,17 @@ const handleSaveOverride = async () => {
   overrideSaving.value = true
   overrideError.value = ''
   try {
-    if (!overrideForm.value.image.trim()) {
+    const imageValue = overrideForm.value.image.trim()
+    if (!imageValue) {
       overrideError.value = 'Image is required.'
+      overrideSaving.value = false
+      return
+    }
+    const duplicate = budgetOverrides.value.find(
+      (item) => item.image === imageValue && (!editingOverride.value || item.id !== editingOverride.value.id),
+    )
+    if (duplicate) {
+      overrideError.value = 'Override for this image already exists.'
       overrideSaving.value = false
       return
     }
@@ -1044,7 +1061,7 @@ const handleSaveOverride = async () => {
       overrideSaving.value = false
       return
     }
-    payload.image = overrideForm.value.image
+    payload.image = imageValue
     let saved
     if (editingOverride.value) {
       saved = await updateBudgetOverride(route.params.id, editingOverride.value.id, payload)

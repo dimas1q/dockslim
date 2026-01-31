@@ -12,12 +12,14 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/budgets"
 	"github.com/dimas1q/dockslim/backend/internal/projects"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 )
 
 type budgetRepoStub struct {
-	list     []budgets.Budget
-	conflict bool
-	calls    int
+	list      []budgets.Budget
+	conflict  bool
+	calls     int
+	createErr error
 }
 
 func (r *budgetRepoStub) ListBudgetsByProject(ctx context.Context, projectID uuid.UUID) ([]budgets.Budget, error) {
@@ -30,6 +32,9 @@ func (r *budgetRepoStub) UpsertDefaultBudget(ctx context.Context, projectID uuid
 
 func (r *budgetRepoStub) CreateBudgetOverride(ctx context.Context, projectID uuid.UUID, image string, thresholds budgets.ResolvedBudget) (budgets.Budget, error) {
 	r.calls++
+	if r.createErr != nil {
+		return budgets.Budget{}, r.createErr
+	}
 	if r.conflict && r.calls > 1 {
 		return budgets.Budget{}, budgets.ErrBudgetConflict
 	}
@@ -155,5 +160,35 @@ func TestBudgetsCreateOverrideConflict(t *testing.T) {
 	handler.CreateOverride(rr2, req2)
 	if rr2.Code != http.StatusConflict {
 		t.Fatalf("expected conflict 409, got %d", rr2.Code)
+	}
+}
+
+func TestBudgetsCreateOverrideUniqueViolationFallback(t *testing.T) {
+	repo := &budgetRepoStub{createErr: &pgconn.PgError{Code: "23505"}}
+	members := &budgetMemberStub{role: projects.RoleOwner}
+	svc := budgets.NewService(repo, members)
+	handler := NewBudgetsHandler(svc)
+
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	payload := map[string]interface{}{"image": "company/app", "warn_delta_mb": 5}
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/"+projectID.String()+"/budgets/overrides", bytes.NewBuffer(body))
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+
+	rr := httptest.NewRecorder()
+	handler.CreateOverride(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected conflict 409, got %d", rr.Code)
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["error"] != "budget override for this image already exists" {
+		t.Fatalf("unexpected error message: %s", resp["error"])
 	}
 }

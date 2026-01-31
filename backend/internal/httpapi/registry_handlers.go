@@ -109,7 +109,7 @@ func (h *RegistriesHandler) Create(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "project not found")
 		case errors.Is(err, registries.ErrNotOwner):
 			writeError(w, http.StatusForbidden, "forbidden")
-		case errors.Is(err, registries.ErrRegistryNameConflict):
+		case errors.Is(err, registries.ErrRegistryNameConflict), isUniqueViolation(err):
 			writeError(w, http.StatusConflict, "registry with this name already exists")
 		case errors.Is(err, registries.ErrInvalidRegistryName),
 			errors.Is(err, registries.ErrInvalidRegistryType),
@@ -199,7 +199,7 @@ func (h *RegistriesHandler) Update(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusForbidden, "forbidden")
 		case errors.Is(err, registries.ErrRegistryNotFound):
 			writeError(w, http.StatusNotFound, "registry not found")
-		case errors.Is(err, registries.ErrRegistryNameConflict):
+		case errors.Is(err, registries.ErrRegistryNameConflict), isUniqueViolation(err):
 			writeError(w, http.StatusConflict, "registry with this name already exists")
 		case errors.Is(err, registries.ErrInvalidRegistryPatch),
 			errors.Is(err, registries.ErrInvalidRegistryCreds),

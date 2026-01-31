@@ -13,6 +13,7 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/registries"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 )
 
 type registryRepoStub struct {
@@ -137,6 +138,43 @@ func TestRegistriesHandlerCreateDuplicateName(t *testing.T) {
 
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("expected status 409, got %d", recorder.Code)
+	}
+}
+
+func TestRegistriesHandlerCreateUniqueViolationFallback(t *testing.T) {
+	projectID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	repo := &registryRepoStub{createErr: &pgconn.PgError{Code: "23505"}}
+	members := &membershipStub{role: projects.RoleOwner}
+	service := registries.NewService(repo, members, registries.EncryptionKey{KeyMaterial: []byte("01234567890123456789012345678901")})
+	handler := NewRegistriesHandler(service)
+
+	payload := map[string]string{
+		"name":         "Registry",
+		"type":         "generic",
+		"registry_url": "https://registry.example.com",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/"+projectID.String()+"/registries", bytes.NewBuffer(body))
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParam(req, "projectId", projectID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.Create(recorder, req)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d", recorder.Code)
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["error"] != "registry with this name already exists" {
+		t.Fatalf("unexpected error message: %s", resp["error"])
 	}
 }
 
