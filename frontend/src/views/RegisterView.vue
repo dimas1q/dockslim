@@ -5,6 +5,16 @@
 
     <form class="space-y-4" @submit.prevent="handleSubmit">
       <div>
+        <label class="text-sm text-slate-300">Login</label>
+        <input
+          v-model="login"
+          type="text"
+          class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+          minlength="3"
+          required
+        />
+      </div>
+      <div>
         <label class="text-sm text-slate-300">Email</label>
         <input
           v-model="email"
@@ -49,6 +59,7 @@ import { useRouter, RouterLink } from 'vue-router'
 import { registerUser } from '../api/client'
 
 const router = useRouter()
+const login = ref('')
 const email = ref('')
 const password = ref('')
 const error = ref('')
@@ -60,7 +71,7 @@ const handleSubmit = async () => {
   success.value = ''
   loading.value = true
   try {
-    await registerUser({ email: email.value, password: password.value })
+    await registerUser({ login: login.value, email: email.value, password: password.value })
     success.value = 'Account created. Redirecting to login...'
     setTimeout(() => router.push('/login'), 800)
   } catch (err) {

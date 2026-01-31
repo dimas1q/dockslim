@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dimas1q/dockslim/backend/internal/auth"
@@ -29,12 +30,14 @@ func NewAuthHandler(service *auth.Service, accessTokenTTL time.Duration, cookieC
 }
 
 type registerRequest struct {
+	Login    string `json:"login"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type registerResponse struct {
 	ID    string `json:"id"`
+	Login string `json:"login"`
 	Email string `json:"email"`
 }
 
@@ -45,12 +48,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.service.Register(r.Context(), req.Email, req.Password)
+	user, err := h.service.Register(r.Context(), req.Login, req.Email, req.Password)
 	if err != nil {
 		switch {
-		case errors.Is(err, auth.ErrInvalidEmail), errors.Is(err, auth.ErrInvalidPassword):
+		case errors.Is(err, auth.ErrInvalidEmail), errors.Is(err, auth.ErrInvalidPassword), errors.Is(err, auth.ErrInvalidLogin):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, auth.ErrEmailAlreadyExists):
+			writeError(w, http.StatusConflict, err.Error())
+		case errors.Is(err, auth.ErrLoginAlreadyExists):
 			writeError(w, http.StatusConflict, err.Error())
 		default:
 			writeError(w, http.StatusInternalServerError, "failed to create user")
@@ -61,17 +66,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if !h.ensureCSRFCookie(w, r) {
 		return
 	}
-	resp := registerResponse{ID: user.ID.String(), Email: user.Email}
+	resp := registerResponse{ID: user.ID.String(), Login: user.Login, Email: user.Email}
 	writeJSON(w, http.StatusCreated, resp)
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Identifier string `json:"identifier"`
+	Email      string `json:"email"` // backwards compatibility
+	Login      string `json:"login"`
+	Password   string `json:"password"`
 }
 
 type loginResponse struct {
 	ID    string `json:"id"`
+	Login string `json:"login"`
 	Email string `json:"email"`
 }
 
@@ -82,7 +90,19 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, token, err := h.service.Login(r.Context(), req.Email, req.Password)
+	identifier := strings.TrimSpace(req.Identifier)
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Email)
+	}
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Login)
+	}
+	if identifier == "" {
+		writeError(w, http.StatusBadRequest, "identifier is required")
+		return
+	}
+
+	user, token, err := h.service.Login(r.Context(), identifier, req.Password)
 	if err != nil {
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			writeError(w, http.StatusUnauthorized, err.Error())
@@ -96,12 +116,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if !h.ensureCSRFCookie(w, r) {
 		return
 	}
-	resp := loginResponse{ID: user.ID.String(), Email: user.Email}
+	resp := loginResponse{ID: user.ID.String(), Login: user.Login, Email: user.Email}
 	writeJSON(w, http.StatusOK, resp)
 }
 
 type meResponse struct {
 	ID    string `json:"id"`
+	Login string `json:"login"`
 	Email string `json:"email"`
 }
 
@@ -115,7 +136,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	if !h.ensureCSRFCookie(w, r) {
 		return
 	}
-	resp := meResponse{ID: user.ID.String(), Email: user.Email}
+	resp := meResponse{ID: user.ID.String(), Login: user.Login, Email: user.Email}
 	writeJSON(w, http.StatusOK, resp)
 }
 

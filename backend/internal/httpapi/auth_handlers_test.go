@@ -19,7 +19,7 @@ func TestAuthHandlerRegisterConflictJSON(t *testing.T) {
 	})
 
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(`{"email":"user@example.com","password":"password123"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(`{"login":"user","email":"user@example.com","password":"password123"}`))
 
 	handler.Register(recorder, req)
 
@@ -40,11 +40,15 @@ func TestAuthHandlerRegisterConflictJSON(t *testing.T) {
 
 type conflictUserStore struct{}
 
-func (c *conflictUserStore) CreateUser(ctx context.Context, email, passwordHash string) (auth.User, error) {
+func (c *conflictUserStore) CreateUser(ctx context.Context, login, email, passwordHash string) (auth.User, error) {
 	return auth.User{}, auth.ErrEmailAlreadyExists
 }
 
 func (c *conflictUserStore) GetUserByEmail(ctx context.Context, email string) (auth.User, error) {
+	return auth.User{}, auth.ErrUserNotFound
+}
+
+func (c *conflictUserStore) GetUserByLogin(ctx context.Context, login string) (auth.User, error) {
 	return auth.User{}, auth.ErrUserNotFound
 }
 

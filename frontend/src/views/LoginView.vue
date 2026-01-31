@@ -5,10 +5,10 @@
 
     <form class="space-y-4" @submit.prevent="handleSubmit">
       <div>
-        <label class="text-sm text-slate-300">Email</label>
+        <label class="text-sm text-slate-300">Email or login</label>
         <input
-          v-model="email"
-          type="email"
+          v-model="identifier"
+          type="text"
           class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
           required
         />
@@ -48,7 +48,7 @@ import { loginUser } from '../api/client'
 import { loadCurrentUser } from '../stores/auth'
 
 const router = useRouter()
-const email = ref('')
+const identifier = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
@@ -57,7 +57,7 @@ const handleSubmit = async () => {
   error.value = ''
   loading.value = true
   try {
-    await loginUser({ email: email.value, password: password.value })
+    await loginUser({ identifier: identifier.value, password: password.value })
     await loadCurrentUser()
     router.push('/projects')
   } catch (err) {

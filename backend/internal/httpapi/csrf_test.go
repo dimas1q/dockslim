@@ -35,7 +35,7 @@ func TestCSRFProtectionRequiresHeader(t *testing.T) {
 		AllowedOrigins:  nil,
 	})
 
-	createUser(t, userStore, "csrf@example.com", "password123")
+	createUser(t, userStore, "csrf", "csrf@example.com", "password123")
 
 	loginRecorder := httptest.NewRecorder()
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"email":"csrf@example.com","password":"password123"}`))
@@ -93,7 +93,7 @@ func TestCSRFProtectionAcceptsMatchingHeader(t *testing.T) {
 		AllowedOrigins:  nil,
 	})
 
-	createUser(t, userStore, "csrf-success@example.com", "password123")
+	createUser(t, userStore, "csrf-success", "csrf-success@example.com", "password123")
 
 	loginRecorder := httptest.NewRecorder()
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewBufferString(`{"email":"csrf-success@example.com","password":"password123"}`))

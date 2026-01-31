@@ -49,8 +49,12 @@ services:
       ANALYZER_POSTGRES_DSN: postgres://dockslim:dockslim@postgres:5432/dockslim?sslmode=disable
       ANALYZER_REDIS_ADDR: redis:6379
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      backend:
+        condition: service_healthy
 
   frontend:
     image: node:20

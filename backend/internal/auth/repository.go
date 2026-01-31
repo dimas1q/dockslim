@@ -21,16 +21,17 @@ func NewRepository(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) CreateUser(ctx context.Context, email, passwordHash string) (User, error) {
+func (r *Repository) CreateUser(ctx context.Context, login, email, passwordHash string) (User, error) {
 	const query = `
-		INSERT INTO users (email, password_hash)
-		VALUES ($1, $2)
-		RETURNING id, email, password_hash, created_at, updated_at
+		INSERT INTO users (login, email, password_hash)
+		VALUES ($1, $2, $3)
+		RETURNING id, login, email, password_hash, created_at, updated_at
 	`
 
 	var user User
-	err := r.db.QueryRowContext(ctx, query, email, passwordHash).Scan(
+	err := r.db.QueryRowContext(ctx, query, login, email, passwordHash).Scan(
 		&user.ID,
+		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
 		&user.CreatedAt,
@@ -39,7 +40,12 @@ func (r *Repository) CreateUser(ctx context.Context, email, passwordHash string)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return User{}, ErrEmailAlreadyExists
+			switch pgErr.ConstraintName {
+			case "users_email_key":
+				return User{}, ErrEmailAlreadyExists
+			case "idx_users_login_unique", "users_login_key":
+				return User{}, ErrLoginAlreadyExists
+			}
 		}
 		return User{}, err
 	}
@@ -49,7 +55,7 @@ func (r *Repository) CreateUser(ctx context.Context, email, passwordHash string)
 
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	const query = `
-		SELECT id, email, password_hash, created_at, updated_at
+		SELECT id, login, email, password_hash, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -57,6 +63,33 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (User, er
 	var user User
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
+		&user.Login,
+		&user.Email,
+		&user.PasswordHash,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, ErrUserNotFound
+	}
+	if err != nil {
+		return User{}, err
+	}
+
+	return user, nil
+}
+
+func (r *Repository) GetUserByLogin(ctx context.Context, login string) (User, error) {
+	const query = `
+		SELECT id, login, email, password_hash, created_at, updated_at
+		FROM users
+		WHERE login = $1
+	`
+
+	var user User
+	err := r.db.QueryRowContext(ctx, query, login).Scan(
+		&user.ID,
+		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
 		&user.CreatedAt,
@@ -74,7 +107,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (User, er
 
 func (r *Repository) GetUserByID(ctx context.Context, id string) (User, error) {
 	const query = `
-		SELECT id, email, password_hash, created_at, updated_at
+		SELECT id, login, email, password_hash, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -82,6 +115,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (User, error) {
 	var user User
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
+		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
 		&user.CreatedAt,
