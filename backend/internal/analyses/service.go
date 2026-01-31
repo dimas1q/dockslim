@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/dimas1q/dockslim/backend/internal/budgets"
 	"github.com/dimas1q/dockslim/backend/internal/projects"
 	"github.com/dimas1q/dockslim/backend/internal/registries"
 	"github.com/google/uuid"
@@ -41,10 +42,15 @@ type Service struct {
 	repo       RepositoryStore
 	members    MembershipStore
 	registries RegistryStore
+	budgets    BudgetResolver
 }
 
-func NewService(repo RepositoryStore, members MembershipStore, registries RegistryStore) *Service {
-	return &Service{repo: repo, members: members, registries: registries}
+type BudgetResolver interface {
+	ResolveBudget(ctx context.Context, userID, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error)
+}
+
+func NewService(repo RepositoryStore, members MembershipStore, registries RegistryStore, budgets BudgetResolver) *Service {
+	return &Service{repo: repo, members: members, registries: registries, budgets: budgets}
 }
 
 func (s *Service) ListAnalyses(ctx context.Context, userID, projectID uuid.UUID) ([]ImageAnalysis, error) {
@@ -180,5 +186,21 @@ func (s *Service) CompareAnalyses(ctx context.Context, userID, projectID, fromID
 		return Comparison{}, ErrAnalysesNotCompleted
 	}
 
-	return BuildComparison(fromAnalysis, toAnalysis)
+	comparison, err := BuildComparison(fromAnalysis, toAnalysis)
+	if err != nil {
+		return Comparison{}, err
+	}
+
+	if s.budgets != nil {
+		resolved, err := s.budgets.ResolveBudget(ctx, userID, projectID, comparison.Image)
+		if err != nil {
+			return Comparison{}, err
+		}
+		if resolved != nil {
+			eval := budgets.EvaluateBudget(comparison.From.TotalSizeBytes, comparison.To.TotalSizeBytes, resolved)
+			comparison.Budget = &eval
+		}
+	}
+
+	return comparison, nil
 }

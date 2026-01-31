@@ -57,6 +57,8 @@ func (h *ProjectsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, projects.ErrInvalidProjectName):
 			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, projects.ErrProjectNameConflict), isUniqueViolation(err):
+			writeError(w, http.StatusConflict, "project with this name already exists")
 		default:
 			writeError(w, http.StatusInternalServerError, "failed to create project")
 		}
@@ -150,6 +152,8 @@ func (h *ProjectsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, projects.ErrProjectNotFound):
 			writeError(w, http.StatusNotFound, "project not found")
+		case errors.Is(err, projects.ErrProjectNameConflict), isUniqueViolation(err):
+			writeError(w, http.StatusConflict, "project with this name already exists")
 		case errors.Is(err, projects.ErrInvalidProjectName):
 			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, projects.ErrInvalidProjectPatch):

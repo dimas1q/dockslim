@@ -6,11 +6,13 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 )
 
 var (
 	ErrProjectNotFound       = errors.New("project not found")
 	ErrProjectMemberNotFound = errors.New("project member not found")
+	ErrProjectNameConflict   = errors.New("project name already exists")
 )
 
 type Repository struct {
@@ -61,6 +63,10 @@ func (r *Repository) CreateProjectWithOwner(ctx context.Context, name string, de
 		&project.UpdatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Project{}, ErrProjectNameConflict
+		}
 		return Project{}, err
 	}
 	if descriptionValue.Valid {
@@ -193,6 +199,10 @@ func (r *Repository) UpdateProject(ctx context.Context, params UpdateProjectPara
 		return Project{}, ErrProjectNotFound
 	}
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Project{}, ErrProjectNameConflict
+		}
 		return Project{}, err
 	}
 

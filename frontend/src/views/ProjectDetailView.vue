@@ -72,6 +72,223 @@
     <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
+          <h3 class="text-xl font-semibold">Budgets</h3>
+          <p class="text-sm text-slate-400 mt-1">
+            Set default thresholds and per-image overrides to catch size regressions early.
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="isOwner"
+            class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+            @click="openOverrideModal()"
+          >
+            Add override
+          </button>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="text-sm font-semibold text-slate-200">Project default</h4>
+            <p class="text-xs text-slate-400">Applies when no image-specific override exists.</p>
+          </div>
+          <span v-if="defaultBudgetSuccess" class="text-xs text-emerald-400">{{ defaultBudgetSuccess }}</span>
+        </div>
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Warn delta (MB)</label>
+            <input
+              v-model="defaultBudgetForm.warn_delta_mb"
+              type="number"
+              min="0"
+              step="1"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              :disabled="!isOwner"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Fail delta (MB)</label>
+            <input
+              v-model="defaultBudgetForm.fail_delta_mb"
+              type="number"
+              min="0"
+              step="1"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              :disabled="!isOwner"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Hard limit (MB)</label>
+            <input
+              v-model="defaultBudgetForm.hard_limit_mb"
+              type="number"
+              min="0"
+              step="1"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              :disabled="!isOwner"
+            />
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="isOwner"
+            class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+            :disabled="defaultBudgetSaving"
+            @click="handleSaveDefaultBudget"
+          >
+            {{ defaultBudgetSaving ? 'Saving...' : 'Save default' }}
+          </button>
+          <p v-if="budgetsError" class="text-sm text-red-400">{{ budgetsError }}</p>
+          <p v-else-if="budgetsLoading" class="text-sm text-slate-400">Loading budgets...</p>
+          <p v-else-if="!isOwner" class="text-xs text-slate-500">Read-only (owner can edit).</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-slate-200">Per-image overrides</p>
+          <p class="text-xs text-slate-500">Exact image match (e.g. company/app)</p>
+        </div>
+        <p v-if="budgetOverrides.length === 0" class="text-sm text-slate-400">No overrides yet.</p>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500">
+              <tr>
+                <th class="py-2 pr-4">Image</th>
+                <th class="py-2 pr-4">Warn Δ</th>
+                <th class="py-2 pr-4">Fail Δ</th>
+                <th class="py-2 pr-4">Hard limit</th>
+                <th class="py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+              <tr v-for="budget in budgetOverrides" :key="budget.id" class="text-slate-200">
+                <td class="py-3 pr-4 font-mono text-xs">{{ budget.image }}</td>
+                <td class="py-3 pr-4 text-slate-300">
+                  {{ budget.warn_delta_mb !== null && budget.warn_delta_mb !== undefined ? `${budget.warn_delta_mb} MB` : '—' }}
+                </td>
+                <td class="py-3 pr-4 text-slate-300">
+                  {{ budget.fail_delta_mb !== null && budget.fail_delta_mb !== undefined ? `${budget.fail_delta_mb} MB` : '—' }}
+                </td>
+                <td class="py-3 pr-4 text-slate-300">
+                  {{ budget.hard_limit_mb !== null && budget.hard_limit_mb !== undefined ? `${budget.hard_limit_mb} MB` : '—' }}
+                </td>
+                <td class="py-3 text-right">
+                  <div class="flex items-center justify-end gap-3">
+                    <button
+                      v-if="isOwner"
+                      class="text-xs text-indigo-300 hover:text-indigo-200"
+                      type="button"
+                      @click="openOverrideModal(budget)"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      v-if="isOwner"
+                      class="text-xs text-red-300 hover:text-red-200"
+                      type="button"
+                      @click="handleDeleteOverride(budget.id)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div
+        v-if="showOverrideModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+      >
+        <div class="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h4 class="text-lg font-semibold text-slate-100">
+                {{ editingOverride ? 'Edit override' : 'Add override' }}
+              </h4>
+              <p class="text-xs text-slate-400">Exact image name match.</p>
+            </div>
+            <button class="text-slate-400 hover:text-slate-200" type="button" @click="closeOverrideModal">
+              ✕
+            </button>
+          </div>
+          <div class="space-y-4">
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400">Image</label>
+              <input
+                v-model="overrideForm.image"
+                type="text"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+                :disabled="overrideSaving"
+              />
+            </div>
+            <div class="grid gap-3 md:grid-cols-3">
+              <div class="space-y-1">
+                <label class="text-xs text-slate-400">Warn delta (MB)</label>
+              <input
+                v-model="overrideForm.warn_delta_mb"
+                type="number"
+                min="0"
+                step="1"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+                :disabled="overrideSaving"
+              />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs text-slate-400">Fail delta (MB)</label>
+              <input
+                v-model="overrideForm.fail_delta_mb"
+                type="number"
+                min="0"
+                step="1"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+                :disabled="overrideSaving"
+              />
+              </div>
+              <div class="space-y-1">
+                <label class="text-xs text-slate-400">Hard limit (MB)</label>
+              <input
+                v-model="overrideForm.hard_limit_mb"
+                type="number"
+                min="0"
+                step="1"
+                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+                :disabled="overrideSaving"
+              />
+              </div>
+            </div>
+            <p v-if="overrideError" class="text-sm text-red-400">{{ overrideError }}</p>
+            <div class="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                class="text-sm text-slate-400 hover:text-slate-200"
+                :disabled="overrideSaving"
+                @click="closeOverrideModal"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+                :disabled="overrideSaving"
+                @click="handleSaveOverride"
+              >
+                {{ overrideSaving ? 'Saving...' : 'Save override' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
           <h3 class="text-xl font-semibold">Registries</h3>
           <p class="text-sm text-slate-400 mt-1">
             Manage container registries connected to this project.
@@ -458,11 +675,16 @@ import {
   deleteAnalysis,
   deleteProject,
   deleteRegistry,
+  getBudgets,
   getProject,
   listAnalyses,
   listRegistries,
   updateProject,
   updateRegistry,
+  upsertDefaultBudget,
+  createBudgetOverride,
+  updateBudgetOverride,
+  deleteBudgetOverride,
 } from '../api/client'
 
 const route = useRoute()
@@ -475,6 +697,18 @@ const deleteError = ref('')
 const registries = ref([])
 const registriesLoading = ref(false)
 const registriesError = ref('')
+const budgetsLoading = ref(false)
+const budgetsError = ref('')
+const budgetsDefault = ref(null)
+const budgetOverrides = ref([])
+const defaultBudgetForm = ref({ warn_delta_mb: '', fail_delta_mb: '', hard_limit_mb: '' })
+const defaultBudgetSaving = ref(false)
+const defaultBudgetSuccess = ref('')
+const overrideForm = ref({ image: '', warn_delta_mb: '', fail_delta_mb: '', hard_limit_mb: '' })
+const showOverrideModal = ref(false)
+const editingOverride = ref(null)
+const overrideSaving = ref(false)
+const overrideError = ref('')
 const savingProject = ref(false)
 const settingsError = ref('')
 const settingsSuccess = ref('')
@@ -546,6 +780,7 @@ const fetchProject = async () => {
   try {
     project.value = await getProject(route.params.id)
     syncSettingsForm()
+    await fetchBudgets()
     await fetchRegistries()
     await fetchAnalyses()
   } catch (err) {
@@ -571,6 +806,33 @@ const fetchRegistries = async () => {
     registriesError.value = err.message
   } finally {
     registriesLoading.value = false
+  }
+}
+
+const syncDefaultBudgetForm = () => {
+  if (budgetsDefault.value) {
+    defaultBudgetForm.value = {
+      warn_delta_mb: bytesToMB(budgetsDefault.value.warn_delta_bytes),
+      fail_delta_mb: bytesToMB(budgetsDefault.value.fail_delta_bytes),
+      hard_limit_mb: bytesToMB(budgetsDefault.value.hard_limit_bytes),
+    }
+  } else {
+    defaultBudgetForm.value = { warn_delta_mb: '', fail_delta_mb: '', hard_limit_mb: '' }
+  }
+}
+
+const fetchBudgets = async () => {
+  budgetsLoading.value = true
+  budgetsError.value = ''
+  try {
+    const data = await getBudgets(route.params.id)
+    budgetsDefault.value = data?.default || null
+    budgetOverrides.value = data?.overrides || []
+    syncDefaultBudgetForm()
+  } catch (err) {
+    budgetsError.value = err.message
+  } finally {
+    budgetsLoading.value = false
   }
 }
 
@@ -659,11 +921,19 @@ const handleCreateRegistry = async () => {
   fieldErrors.value = {}
   createRegistryError.value = ''
 
-  if (!form.value.name.trim()) {
+  const nameValue = form.value.name.trim()
+  const urlValue = form.value.registry_url.trim()
+
+  if (!nameValue) {
     fieldErrors.value.name = 'Name is required.'
   }
-  if (!form.value.registry_url.trim()) {
+  if (!urlValue) {
     fieldErrors.value.registry_url = 'Registry URL is required.'
+  }
+
+  const duplicate = registries.value.find((r) => r.name === nameValue)
+  if (!fieldErrors.value.name && duplicate) {
+    fieldErrors.value.name = 'Registry with this name already exists.'
   }
 
   if (Object.keys(fieldErrors.value).length > 0) {
@@ -673,9 +943,9 @@ const handleCreateRegistry = async () => {
   creatingRegistry.value = true
   try {
     await createRegistry(route.params.id, {
-      name: form.value.name,
+      name: nameValue,
       type: 'generic',
-      registry_url: form.value.registry_url,
+      registry_url: urlValue,
       username: form.value.username,
       password: form.value.password,
     })
@@ -684,9 +954,145 @@ const handleCreateRegistry = async () => {
     resetForm()
     await fetchRegistries()
   } catch (err) {
-    createRegistryError.value = err.message
+    if (err.status === 409) {
+      createRegistryError.value = 'Registry with this name already exists.'
+    } else {
+      createRegistryError.value = err.message
+    }
   } finally {
     creatingRegistry.value = false
+  }
+}
+
+const buildBudgetPayload = (form) => {
+  const payload = {}
+  let invalid = false
+  const mapField = (key) => {
+    const value = form[key]
+    if (value === '' || value === null || value === undefined) {
+      payload[key] = null
+      return
+    }
+    const numeric = Math.trunc(Number(value))
+    if (!Number.isFinite(numeric)) {
+      invalid = true
+      return
+    }
+    payload[key] = numeric
+  }
+  mapField('warn_delta_mb')
+  mapField('fail_delta_mb')
+  mapField('hard_limit_mb')
+  return { payload, invalid }
+}
+
+const handleSaveDefaultBudget = async () => {
+  if (!isOwner.value) return
+  defaultBudgetSaving.value = true
+  defaultBudgetSuccess.value = ''
+  budgetsError.value = ''
+  try {
+    const { payload, invalid } = buildBudgetPayload(defaultBudgetForm.value)
+    if (invalid) {
+      budgetsError.value = 'Enter whole numbers for MB values.'
+      defaultBudgetSaving.value = false
+      return
+    }
+    const saved = await upsertDefaultBudget(route.params.id, payload)
+    budgetsDefault.value = saved
+    syncDefaultBudgetForm()
+    defaultBudgetSuccess.value = 'Budget saved.'
+  } catch (err) {
+    budgetsError.value = err.message
+  } finally {
+    defaultBudgetSaving.value = false
+  }
+}
+
+const resetOverrideForm = () => {
+  overrideForm.value = { image: '', warn_delta_mb: '', fail_delta_mb: '', hard_limit_mb: '' }
+  overrideError.value = ''
+  editingOverride.value = null
+}
+
+const openOverrideModal = (budget = null) => {
+  if (budget) {
+    editingOverride.value = budget
+    overrideForm.value = {
+      image: budget.image || '',
+      warn_delta_mb: bytesToMB(budget.warn_delta_bytes),
+      fail_delta_mb: bytesToMB(budget.fail_delta_bytes),
+      hard_limit_mb: bytesToMB(budget.hard_limit_bytes),
+    }
+  } else {
+    resetOverrideForm()
+  }
+  overrideError.value = ''
+  showOverrideModal.value = true
+}
+
+const closeOverrideModal = () => {
+  showOverrideModal.value = false
+  resetOverrideForm()
+}
+
+const handleSaveOverride = async () => {
+  if (!isOwner.value) return
+  overrideSaving.value = true
+  overrideError.value = ''
+  try {
+    const imageValue = overrideForm.value.image.trim()
+    if (!imageValue) {
+      overrideError.value = 'Image is required.'
+      overrideSaving.value = false
+      return
+    }
+    const duplicate = budgetOverrides.value.find(
+      (item) => item.image === imageValue && (!editingOverride.value || item.id !== editingOverride.value.id),
+    )
+    if (duplicate) {
+      overrideError.value = 'Override for this image already exists.'
+      overrideSaving.value = false
+      return
+    }
+    const { payload, invalid } = buildBudgetPayload(overrideForm.value)
+    if (invalid) {
+      overrideError.value = 'Enter whole numbers for MB values.'
+      overrideSaving.value = false
+      return
+    }
+    payload.image = imageValue
+    let saved
+    if (editingOverride.value) {
+      saved = await updateBudgetOverride(route.params.id, editingOverride.value.id, payload)
+      budgetOverrides.value = budgetOverrides.value.map((item) =>
+        item.id === saved.id ? saved : item,
+      )
+    } else {
+      saved = await createBudgetOverride(route.params.id, payload)
+      budgetOverrides.value = [...budgetOverrides.value, saved]
+    }
+    closeOverrideModal()
+  } catch (err) {
+    if (err.status === 409) {
+      overrideError.value = 'Override for this image already exists.'
+    } else {
+      overrideError.value = err.message
+    }
+  } finally {
+    overrideSaving.value = false
+  }
+}
+
+const handleDeleteOverride = async (budgetId) => {
+  if (!isOwner.value) return
+  const confirmed = window.confirm('Delete this override?')
+  if (!confirmed) return
+  try {
+    await deleteBudgetOverride(route.params.id, budgetId)
+    budgetOverrides.value = budgetOverrides.value.filter((b) => b.id !== budgetId)
+  } catch (err) {
+    budgetsError.value = err.message
   }
 }
 
@@ -769,6 +1175,12 @@ const formatBytes = (value) => {
     unitIndex += 1
   }
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
+
+const bytesToMB = (value) => {
+  if (value === null || value === undefined) return ''
+  const mb = Math.round(Number(value) / (1024 * 1024))
+  return Number.isFinite(mb) ? mb : ''
 }
 
 const statusBadgeClass = (status) => {
@@ -901,7 +1313,11 @@ const handleUpdateRegistry = async () => {
     editRegistrySuccess.value = 'Saved.'
     await fetchRegistries()
   } catch (err) {
-    editRegistryError.value = err.message
+    if (err.status === 409) {
+      editRegistryError.value = 'Registry with this name already exists.'
+    } else {
+      editRegistryError.value = err.message
+    }
   } finally {
     savingRegistry.value = false
   }

@@ -14,6 +14,7 @@ type Dependencies struct {
 	ProjectsHandler   *ProjectsHandler
 	RegistriesHandler *RegistriesHandler
 	AnalysesHandler   *AnalysesHandler
+	BudgetsHandler    *BudgetsHandler
 	AllowedOrigins    []string
 }
 
@@ -43,6 +44,13 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Get("/{id}", deps.ProjectsHandler.Get)
 				r.Patch("/{id}", deps.ProjectsHandler.Update)
 				r.Delete("/{id}", deps.ProjectsHandler.Delete)
+				r.Route("/{projectId}/budgets", func(r chi.Router) {
+					r.Get("/", deps.BudgetsHandler.List)
+					r.Put("/default", deps.BudgetsHandler.UpsertDefault)
+					r.Post("/overrides", deps.BudgetsHandler.CreateOverride)
+					r.Patch("/overrides/{budgetId}", deps.BudgetsHandler.UpdateOverride)
+					r.Delete("/overrides/{budgetId}", deps.BudgetsHandler.DeleteOverride)
+				})
 				r.Route("/{projectId}/registries", func(r chi.Router) {
 					r.Get("/", deps.RegistriesHandler.List)
 					r.Post("/", deps.RegistriesHandler.Create)

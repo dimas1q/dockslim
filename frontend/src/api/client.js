@@ -138,3 +138,28 @@ export const compareAnalyses = (projectId, fromId, toId) =>
   apiRequest(
     `/api/v1/projects/${projectId}/analyses/compare?from=${encodeURIComponent(fromId)}&to=${encodeURIComponent(toId)}`,
   )
+
+export const getBudgets = (projectId) => apiRequest(`/api/v1/projects/${projectId}/budgets`)
+
+export const upsertDefaultBudget = (projectId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}/budgets/default`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+
+export const createBudgetOverride = (projectId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}/budgets/overrides`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const updateBudgetOverride = (projectId, budgetId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}/budgets/overrides/${budgetId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteBudgetOverride = (projectId, budgetId) =>
+  apiRequest(`/api/v1/projects/${projectId}/budgets/overrides/${budgetId}`, {
+    method: 'DELETE',
+  })

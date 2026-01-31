@@ -94,18 +94,28 @@ const fetchProjects = async () => {
 
 const handleCreate = async () => {
   createError.value = ''
-  if (!newName.value.trim()) {
+  const trimmed = newName.value.trim()
+  if (!trimmed) {
     createError.value = 'Project name is required.'
+    return
+  }
+  const duplicate = projects.value.find((p) => p.name === trimmed)
+  if (duplicate) {
+    createError.value = 'Project with this name already exists.'
     return
   }
 
   creating.value = true
   try {
-    const project = await createProject({ name: newName.value })
+    const project = await createProject({ name: trimmed })
     projects.value = [project, ...projects.value]
     newName.value = ''
   } catch (err) {
-    createError.value = err.message
+    if (err.status === 409) {
+      createError.value = 'Project with this name already exists.'
+    } else {
+      createError.value = err.message
+    }
   } finally {
     creating.value = false
   }

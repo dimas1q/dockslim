@@ -5,16 +5,18 @@ import (
 	"sort"
 	"time"
 
+	"github.com/dimas1q/dockslim/backend/internal/budgets"
 	"github.com/google/uuid"
 )
 
 type Comparison struct {
-	ProjectID uuid.UUID           `json:"project_id"`
-	Image     string              `json:"image"`
-	From      ComparisonAnalysis  `json:"from"`
-	To        ComparisonAnalysis  `json:"to"`
-	Summary   ComparisonSummary   `json:"summary"`
-	Layers    ComparisonLayerDiff `json:"layers"`
+	ProjectID uuid.UUID                 `json:"project_id"`
+	Image     string                    `json:"image"`
+	From      ComparisonAnalysis        `json:"from"`
+	To        ComparisonAnalysis        `json:"to"`
+	Summary   ComparisonSummary         `json:"summary"`
+	Layers    ComparisonLayerDiff       `json:"layers"`
+	Budget    *budgets.EvaluationResult `json:"budget,omitempty"`
 }
 
 type ComparisonAnalysis struct {

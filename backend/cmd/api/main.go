@@ -11,6 +11,7 @@ import (
 
 	"github.com/dimas1q/dockslim/backend/internal/analyses"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
+	"github.com/dimas1q/dockslim/backend/internal/budgets"
 	"github.com/dimas1q/dockslim/backend/internal/config"
 	"github.com/dimas1q/dockslim/backend/internal/db"
 	"github.com/dimas1q/dockslim/backend/internal/httpapi"
@@ -53,18 +54,20 @@ func main() {
 	projectRepo := projects.NewRepository(database)
 	registryRepo := registries.NewRepository(database)
 	analysisRepo := analyses.NewRepository(database)
+	budgetRepo := budgets.NewRepository(database)
 	tokenManager, err := auth.NewTokenManager(ctx, authRepo, auth.DefaultAccessTokenTTL)
 	if err != nil {
 		log.Fatalf("failed to initialize token manager: %v", err)
 	}
 	authService := auth.NewService(authRepo, tokenManager)
 	projectService := projects.NewService(projectRepo)
+	budgetService := budgets.NewService(budgetRepo, projectRepo)
 	activeKey, err := registries.EnsureActiveKey(ctx, registryRepo)
 	if err != nil {
 		log.Fatalf("failed to load registry encryption key: %v", err)
 	}
 	registryService := registries.NewService(registryRepo, projectRepo, activeKey)
-	analysisService := analyses.NewService(analysisRepo, projectRepo, registryRepo)
+	analysisService := analyses.NewService(analysisRepo, projectRepo, registryRepo, budgetService)
 	middleware := auth.NewMiddleware(tokenManager, authRepo)
 	cookieSameSite, err := parseSameSite(cfg.CookieSameSite)
 	if err != nil {
@@ -82,6 +85,7 @@ func main() {
 	projectsHandler := httpapi.NewProjectsHandler(projectService)
 	registriesHandler := httpapi.NewRegistriesHandler(registryService)
 	analysesHandler := httpapi.NewAnalysesHandler(analysisService)
+	budgetsHandler := httpapi.NewBudgetsHandler(budgetService)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		AuthHandler:       authHandler,
@@ -89,6 +93,7 @@ func main() {
 		ProjectsHandler:   projectsHandler,
 		RegistriesHandler: registriesHandler,
 		AnalysesHandler:   analysesHandler,
+		BudgetsHandler:    budgetsHandler,
 		AllowedOrigins:    cfg.CORSAllowedOrigins,
 	})
 
