@@ -26,6 +26,24 @@ func (r *registryRepoStub) ListRegistriesByProject(ctx context.Context, projectI
 	return r.registries, nil
 }
 
+func (r *registryRepoStub) GetRegistryForProject(ctx context.Context, projectID, registryID uuid.UUID) (registries.Registry, error) {
+	for _, reg := range r.registries {
+		if reg.ID == registryID && reg.ProjectID == projectID {
+			return reg, nil
+		}
+	}
+	return registries.Registry{}, registries.ErrRegistryNotFound
+}
+
+func (r *registryRepoStub) GetRegistryByName(ctx context.Context, projectID uuid.UUID, name string) (registries.Registry, error) {
+	for _, reg := range r.registries {
+		if reg.ProjectID == projectID && reg.Name == name {
+			return reg, nil
+		}
+	}
+	return registries.Registry{}, registries.ErrRegistryNotFound
+}
+
 func (r *registryRepoStub) CreateRegistry(ctx context.Context, params registries.CreateRegistryParams) (registries.Registry, error) {
 	if r.createErr != nil {
 		return registries.Registry{}, r.createErr

@@ -12,6 +12,8 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/analyses"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/budgets"
+	"github.com/dimas1q/dockslim/backend/internal/ci"
+	"github.com/dimas1q/dockslim/backend/internal/citokens"
 	"github.com/dimas1q/dockslim/backend/internal/config"
 	"github.com/dimas1q/dockslim/backend/internal/db"
 	"github.com/dimas1q/dockslim/backend/internal/httpapi"
@@ -68,7 +70,10 @@ func main() {
 	}
 	registryService := registries.NewService(registryRepo, projectRepo, activeKey)
 	analysisService := analyses.NewService(analysisRepo, projectRepo, registryRepo, budgetService)
-	middleware := auth.NewMiddleware(tokenManager, authRepo)
+	ciService := ci.NewService(analysisService, budgetService)
+	ciTokenRepo := citokens.NewRepository(database)
+	ciTokenService := citokens.NewService(ciTokenRepo, projectRepo)
+	middleware := auth.NewMiddleware(tokenManager, authRepo, ciTokenService)
 	cookieSameSite, err := parseSameSite(cfg.CookieSameSite)
 	if err != nil {
 		log.Fatalf("invalid COOKIE_SAMESITE: %v", err)
@@ -86,6 +91,8 @@ func main() {
 	registriesHandler := httpapi.NewRegistriesHandler(registryService)
 	analysesHandler := httpapi.NewAnalysesHandler(analysisService)
 	budgetsHandler := httpapi.NewBudgetsHandler(budgetService)
+	ciTokensHandler := httpapi.NewCITokensHandler(ciTokenService)
+	ciHandler := httpapi.NewCIHandler(ciService, analysisService, registryService)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		AuthHandler:       authHandler,
@@ -94,6 +101,8 @@ func main() {
 		RegistriesHandler: registriesHandler,
 		AnalysesHandler:   analysesHandler,
 		BudgetsHandler:    budgetsHandler,
+		CITokensHandler:   ciTokensHandler,
+		CIHandler:         ciHandler,
 		AllowedOrigins:    cfg.CORSAllowedOrigins,
 	})
 

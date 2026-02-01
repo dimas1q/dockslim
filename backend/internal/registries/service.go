@@ -18,6 +18,8 @@ var (
 	ErrInvalidRegistryCreds = errors.New("invalid registry credentials")
 	ErrProjectNotFound      = errors.New("project not found")
 	ErrNotOwner             = errors.New("user is not project owner")
+	ErrRegistryAmbiguous    = errors.New("multiple registries match name")
+	ErrMissingRegistry      = errors.New("missing registry identifier")
 )
 
 type RepositoryStore interface {
@@ -25,6 +27,8 @@ type RepositoryStore interface {
 	CreateRegistry(ctx context.Context, params CreateRegistryParams) (Registry, error)
 	UpdateRegistry(ctx context.Context, params UpdateRegistryParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, projectID, registryID uuid.UUID) error
+	GetRegistryForProject(ctx context.Context, projectID, registryID uuid.UUID) (Registry, error)
+	GetRegistryByName(ctx context.Context, projectID uuid.UUID, name string) (Registry, error)
 }
 
 type MembershipStore interface {
@@ -121,6 +125,44 @@ func (s *Service) UpdateRegistry(ctx context.Context, userID, projectID, registr
 	}
 
 	return s.repo.UpdateRegistry(ctx, params)
+}
+
+// ResolveRegistryReference selects a registry by id, name, or host (in that priority).
+func (s *Service) ResolveRegistryReference(ctx context.Context, projectID uuid.UUID, registryID *uuid.UUID, name *string, host *string) (Registry, error) {
+	if registryID != nil && *registryID != uuid.Nil {
+		return s.repo.GetRegistryForProject(ctx, projectID, *registryID)
+	}
+
+	if name != nil && strings.TrimSpace(*name) != "" {
+		return s.repo.GetRegistryByName(ctx, projectID, strings.TrimSpace(*name))
+	}
+
+	if host != nil && strings.TrimSpace(*host) != "" {
+		list, err := s.repo.ListRegistriesByProject(ctx, projectID)
+		if err != nil {
+			return Registry{}, err
+		}
+		hostLower := strings.ToLower(strings.TrimSpace(*host))
+		matches := make([]Registry, 0)
+		for _, reg := range list {
+			parsed, err := url.Parse(reg.RegistryURL)
+			if err != nil {
+				continue
+			}
+			if strings.EqualFold(parsed.Hostname(), hostLower) {
+				matches = append(matches, reg)
+			}
+		}
+		if len(matches) == 0 {
+			return Registry{}, ErrRegistryNotFound
+		}
+		if len(matches) > 1 {
+			return Registry{}, ErrRegistryAmbiguous
+		}
+		return matches[0], nil
+	}
+
+	return Registry{}, ErrMissingRegistry
 }
 
 func (s *Service) buildCreateParams(projectID uuid.UUID, input CreateRegistryInput) (CreateRegistryParams, error) {

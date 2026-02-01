@@ -126,6 +126,10 @@ func (b *budgetResolverStub) ResolveBudget(ctx context.Context, userID, projectI
 	return b.resolved, b.err
 }
 
+func (b *budgetResolverStub) ResolveBudgetForProject(ctx context.Context, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error) {
+	return b.resolved, b.err
+}
+
 func (m *analysisMembershipStub) GetMemberRole(ctx context.Context, projectID, userID uuid.UUID) (string, error) {
 	if m.err != nil {
 		return "", m.err

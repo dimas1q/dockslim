@@ -105,6 +105,67 @@ curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID} \
   -b /tmp/dockslim.cookies
 ```
 
+Registries API (project owners)
+
+```bash
+# List registries
+curl -b /tmp/dockslim.cookies \
+  http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries
+
+# Create registry
+curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies \
+  -d '{"name":"prod","type":"generic","registry_url":"https://registry.example.com","username":"ci","password":"token"}'
+
+# Update registry
+curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries/${REGISTRY_ID} \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies \
+  -d '{"name":"prod-eu","registry_url":"https://eu.registry.example.com","username":"ci","token":"new-token"}'
+
+# Delete registry
+curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries/${REGISTRY_ID} \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies
+```
+
+Budgets API (project owners)
+
+```bash
+# Get budgets (default + overrides)
+curl -b /tmp/dockslim.cookies \
+  http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets
+
+# Upsert default budget
+curl -X PUT http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/default \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies \
+  -d '{"warn_delta_mb":50,"fail_delta_mb":150,"hard_limit_mb":2048}'
+
+# Create per-image override
+curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/overrides \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies \
+  -d '{"image":"company/app","warn_delta_mb":30,"fail_delta_mb":120}'
+
+# Update override
+curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/overrides/${BUDGET_ID} \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies \
+  -d '{"fail_delta_mb":140}'
+
+# Delete override
+curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/overrides/${BUDGET_ID} \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies
+```
+
 Analysis comparison:
 
 ```bash
@@ -115,6 +176,59 @@ curl -b /tmp/dockslim.cookies \
 ```
 
 In the frontend, open a completed analysis or the project analyses list and use the Compare action to see the size and layer diff between two completed analyses of the same image.
+
+### CI tokens & automation
+
+Project owners can issue project-scoped CI tokens to let pipelines run analyses, generate compare reports, and post PR/MR comments without user cookies.
+
+```bash
+# Use the token (Authorization: Bearer ds_ci_<...>)
+CI_TOKEN="ds_ci_..."
+
+# Trigger analysis & get report-friendly payload
+curl -X POST http://localhost:8080/api/v1/ci/reports/image \
+  -H "Authorization: Bearer ${CI_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id":"'"${PROJECT_ID}"'","registry_id":"'"${REGISTRY_ID}"'","image":"repo/app","tag":"main"}'
+
+# Compare two analyses and get markdown/json report + budget verdict
+curl -X POST http://localhost:8080/api/v1/ci/reports/compare \
+  -H "Authorization: Bearer ${CI_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id":"'"${PROJECT_ID}"'","from_analysis_id":"'"${FROM_ANALYSIS_ID}"'","to_analysis_id":"'"${TO_ANALYSIS_ID}"'","include_markdown":true,"include_json":true}'
+
+# Post PR/MR comment (no SCM token is stored)
+curl -X POST http://localhost:8080/api/v1/ci/comments \
+  -H "Authorization: Bearer ${CI_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id":"'"${PROJECT_ID}"'","provider":"github","repo":"org/repo","pr_number":123,"scm_token":"ghp_...","body_markdown":"Report body"}'
+```
+
+### CI tokens API (owners)
+
+```bash
+# List CI tokens (metadata only)
+curl -b /tmp/dockslim.cookies \
+  http://localhost:8080/api/v1/projects/${PROJECT_ID}/ci-tokens
+
+# Create CI token (plaintext token returned once)
+curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/ci-tokens \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies \
+  -d '{"name":"ci-runner","expires_at":"2026-03-01T00:00:00Z"}'
+
+# Revoke CI token
+curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/ci-tokens/${TOKEN_ID}/revoke \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
+  -b /tmp/dockslim.cookies
+```
+
+Registry lookup for CI:
+- `registry_id` has priority.
+- or `registry_name`
+- or `registry_host` (matches registries in the same project by hostname).
+Missing/unknown returns 400/404; ambiguous host returns 409.
 
 ### Budgets / Limits
 

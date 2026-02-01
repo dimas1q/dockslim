@@ -18,6 +18,15 @@ func (f *fakeRepo) ListRegistriesByProject(ctx context.Context, projectID uuid.U
 	return f.registries, nil
 }
 
+func (f *fakeRepo) GetRegistryByName(ctx context.Context, projectID uuid.UUID, name string) (Registry, error) {
+	for _, reg := range f.registries {
+		if reg.ProjectID == projectID && reg.Name == name {
+			return reg, nil
+		}
+	}
+	return Registry{}, ErrRegistryNotFound
+}
+
 func (f *fakeRepo) CreateRegistry(ctx context.Context, params CreateRegistryParams) (Registry, error) {
 	registry := Registry{
 		ID:          uuid.New(),
@@ -30,6 +39,15 @@ func (f *fakeRepo) CreateRegistry(ctx context.Context, params CreateRegistryPara
 	f.registries = append(f.registries, registry)
 	f.lastPasswordEnc = params.PasswordEnc
 	return registry, nil
+}
+
+func (f *fakeRepo) GetRegistryForProject(ctx context.Context, projectID, registryID uuid.UUID) (Registry, error) {
+	for _, reg := range f.registries {
+		if reg.ID == registryID && reg.ProjectID == projectID {
+			return reg, nil
+		}
+	}
+	return Registry{}, ErrRegistryNotFound
 }
 
 func (f *fakeRepo) DeleteRegistry(ctx context.Context, projectID, registryID uuid.UUID) error {

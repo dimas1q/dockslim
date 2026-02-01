@@ -1,19 +1,31 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/dimas1q/dockslim/backend/internal/citokens"
 )
 
 type Middleware struct {
-	tokens *TokenManager
-	users  UserStore
+	tokens   AccessTokenValidator
+	users    UserStore
+	ciTokens CITokenAuthenticator
 }
 
-func NewMiddleware(tokens *TokenManager, users UserStore) *Middleware {
-	return &Middleware{tokens: tokens, users: users}
+type AccessTokenValidator interface {
+	ValidateToken(ctx context.Context, tokenString string) (*AccessTokenClaims, error)
+}
+
+type CITokenAuthenticator interface {
+	Authenticate(ctx context.Context, tokenString string) (citokens.Token, error)
+}
+
+func NewMiddleware(tokens AccessTokenValidator, users UserStore, ciTokens CITokenAuthenticator) *Middleware {
+	return &Middleware{tokens: tokens, users: users, ciTokens: ciTokens}
 }
 
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
@@ -21,6 +33,54 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 		tokenString, err := m.extractToken(r)
 		if err != nil {
 			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		if strings.HasPrefix(tokenString, citokens.TokenPrefix) {
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		claims, err := m.tokens.ValidateToken(r.Context(), tokenString)
+		if err != nil {
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		userID := claims.Subject
+		if userID == "" {
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		user, err := m.users.GetUserByID(r.Context(), userID)
+		if err != nil {
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		ctx := WithUser(r.Context(), user)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// AuthenticateUserOrCIToken allows either user JWT/cookie or CI token.
+func (m *Middleware) AuthenticateUserOrCIToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString, err := m.extractToken(r)
+		if err != nil {
+			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		if m.ciTokens != nil && strings.HasPrefix(tokenString, citokens.TokenPrefix) {
+			token, err := m.ciTokens.Authenticate(r.Context(), tokenString)
+			if err != nil {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			ctx := citokens.WithToken(r.Context(), token)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 

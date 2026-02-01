@@ -15,6 +15,8 @@ type Dependencies struct {
 	RegistriesHandler *RegistriesHandler
 	AnalysesHandler   *AnalysesHandler
 	BudgetsHandler    *BudgetsHandler
+	CITokensHandler   *CITokensHandler
+	CIHandler         *CIHandler
 	AllowedOrigins    []string
 }
 
@@ -57,6 +59,13 @@ func NewRouter(deps Dependencies) http.Handler {
 					r.Patch("/{registryId}", deps.RegistriesHandler.Update)
 					r.Delete("/{registryId}", deps.RegistriesHandler.Delete)
 				})
+				if deps.CITokensHandler != nil {
+					r.Route("/{projectId}/ci-tokens", func(r chi.Router) {
+						r.Post("/", deps.CITokensHandler.Create)
+						r.Get("/", deps.CITokensHandler.List)
+						r.Post("/{tokenId}/revoke", deps.CITokensHandler.Revoke)
+					})
+				}
 				r.Route("/{projectId}/analyses", func(r chi.Router) {
 					r.Get("/", deps.AnalysesHandler.List)
 					r.Post("/", deps.AnalysesHandler.Create)
@@ -67,6 +76,15 @@ func NewRouter(deps Dependencies) http.Handler {
 				})
 			})
 		})
+
+		if deps.CIHandler != nil {
+			r.Route("/ci", func(r chi.Router) {
+				r.Use(deps.AuthMiddleware.AuthenticateUserOrCIToken)
+				r.Post("/reports/image", deps.CIHandler.CreateAnalysisReport)
+				r.Post("/reports/compare", deps.CIHandler.CompareReport)
+				r.Post("/comments", deps.CIHandler.PostComment)
+			})
+		}
 	})
 
 	return r

@@ -163,3 +163,17 @@ export const deleteBudgetOverride = (projectId, budgetId) =>
   apiRequest(`/api/v1/projects/${projectId}/budgets/overrides/${budgetId}`, {
     method: 'DELETE',
   })
+
+export const listCITokens = (projectId) =>
+  apiRequest(`/api/v1/projects/${projectId}/ci-tokens`)
+
+export const createCIToken = (projectId, payload) =>
+  apiRequest(`/api/v1/projects/${projectId}/ci-tokens`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const revokeCIToken = (projectId, tokenId) =>
+  apiRequest(`/api/v1/projects/${projectId}/ci-tokens/${tokenId}/revoke`, {
+    method: 'POST',
+  })

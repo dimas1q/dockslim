@@ -154,6 +154,11 @@ func (s *Service) ResolveBudget(ctx context.Context, userID, projectID uuid.UUID
 	return s.repo.ResolveBudgetForImage(ctx, projectID, image)
 }
 
+// ResolveBudgetForProject resolves budget without user membership check (used for CI tokens).
+func (s *Service) ResolveBudgetForProject(ctx context.Context, projectID uuid.UUID, image string) (*ResolvedBudget, error) {
+	return s.repo.ResolveBudgetForImage(ctx, projectID, image)
+}
+
 func (s *Service) ensureOwner(ctx context.Context, userID, projectID uuid.UUID) error {
 	role, err := s.members.GetMemberRole(ctx, projectID, userID)
 	if err != nil {

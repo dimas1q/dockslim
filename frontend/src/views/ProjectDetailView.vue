@@ -289,6 +289,112 @@
     <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
+          <h3 class="text-xl font-semibold">CI tokens</h3>
+          <p class="text-sm text-slate-400 mt-1">
+            Generate project-scoped tokens for CI pipelines to trigger analyses and post reports.
+          </p>
+        </div>
+      </div>
+
+      <p v-if="!isOwner && project" class="text-xs text-slate-500">Only owners can manage CI tokens.</p>
+
+      <div v-if="isOwner" class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
+        <h4 class="text-sm font-semibold text-slate-200">Create token</h4>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Name</label>
+            <input
+              v-model="ciTokenForm.name"
+              type="text"
+              placeholder="ci-runner"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-slate-400">Expires at (optional)</label>
+            <input
+              v-model="ciTokenForm.expires_at"
+              type="datetime-local"
+              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">Token will be shown once after creation.</p>
+        <div class="flex items-center gap-3">
+          <button
+            class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+            :disabled="ciTokenCreating"
+            @click="handleCreateCIToken"
+          >
+            {{ ciTokenCreating ? 'Creating...' : 'Create token' }}
+          </button>
+          <p v-if="ciTokenCreateError" class="text-sm text-red-400">{{ ciTokenCreateError }}</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-slate-200">Existing tokens</p>
+          <p v-if="ciTokensLoading" class="text-xs text-slate-400">Loading...</p>
+        </div>
+        <p v-if="ciTokensError" class="text-sm text-red-400">{{ ciTokensError }}</p>
+        <p v-else-if="ciTokens.length === 0" class="text-sm text-slate-400">No tokens yet.</p>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500">
+              <tr>
+                <th class="py-2 pr-4">Name</th>
+                <th class="py-2 pr-4">Created</th>
+                <th class="py-2 pr-4">Last used</th>
+                <th class="py-2 pr-4">Expires</th>
+                <th class="py-2 pr-4">Status</th>
+                <th class="py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+              <tr v-for="token in ciTokens" :key="token.id" class="text-slate-200">
+                <td class="py-3 pr-4">{{ token.name }}</td>
+                <td class="py-3 pr-4 text-slate-400">{{ formatDate(token.created_at) }}</td>
+                <td class="py-3 pr-4 text-slate-400">
+                  {{ token.last_used_at ? formatDate(token.last_used_at) : 'Never' }}
+                </td>
+                <td class="py-3 pr-4 text-slate-400">
+                  {{ token.expires_at ? formatDate(token.expires_at) : '—' }}
+                </td>
+                <td class="py-3 pr-4">
+                  <span
+                    v-if="token.revoked_at"
+                    class="rounded-full bg-rose-500/20 px-2 py-1 text-xs font-semibold text-rose-200"
+                  >
+                    Revoked
+                  </span>
+                  <span
+                    v-else
+                    class="rounded-full bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-200"
+                  >
+                    Active
+                  </span>
+                </td>
+                <td class="py-3 text-right">
+                  <button
+                    v-if="isOwner && !token.revoked_at"
+                    class="text-xs text-red-300 hover:text-red-200"
+                    :disabled="revokingTokenId === token.id"
+                    @click="handleRevokeCIToken(token)"
+                  >
+                    {{ revokingTokenId === token.id ? 'Revoking...' : 'Revoke' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
           <h3 class="text-xl font-semibold">Registries</h3>
           <p class="text-sm text-slate-400 mt-1">
             Manage container registries connected to this project.
@@ -663,6 +769,44 @@
         </div>
       </div>
     </section>
+
+    <div
+      v-if="showTokenModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+    >
+      <div class="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h4 class="text-lg font-semibold text-slate-100">New CI token</h4>
+            <p class="text-xs text-amber-300">
+              Save this token now; it won’t be shown again.
+            </p>
+          </div>
+          <button class="text-slate-400 hover:text-slate-200" type="button" @click="showTokenModal = false">
+            ✕
+          </button>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-4 space-y-3">
+          <p class="text-sm text-slate-300 break-all font-mono">{{ createdTokenValue }}</p>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+              @click="copyToken"
+            >
+              Copy token
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+              @click="showTokenModal = false"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -672,6 +816,8 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   createAnalysis,
   createRegistry,
+  createCIToken,
+  listCITokens,
   deleteAnalysis,
   deleteProject,
   deleteRegistry,
@@ -679,6 +825,7 @@ import {
   getProject,
   listAnalyses,
   listRegistries,
+  revokeCIToken,
   updateProject,
   updateRegistry,
   upsertDefaultBudget,
@@ -709,6 +856,15 @@ const showOverrideModal = ref(false)
 const editingOverride = ref(null)
 const overrideSaving = ref(false)
 const overrideError = ref('')
+const ciTokens = ref([])
+const ciTokensLoading = ref(false)
+const ciTokensError = ref('')
+const ciTokenForm = ref({ name: '', expires_at: '' })
+const ciTokenCreateError = ref('')
+const ciTokenCreating = ref(false)
+const showTokenModal = ref(false)
+const createdTokenValue = ref('')
+const revokingTokenId = ref(null)
 const savingProject = ref(false)
 const settingsError = ref('')
 const settingsSuccess = ref('')
@@ -783,6 +939,11 @@ const fetchProject = async () => {
     await fetchBudgets()
     await fetchRegistries()
     await fetchAnalyses()
+    if (isOwner.value) {
+      await fetchCITokens()
+    } else {
+      ciTokens.value = []
+    }
   } catch (err) {
     error.value = err.message
   } finally {
@@ -806,6 +967,19 @@ const fetchRegistries = async () => {
     registriesError.value = err.message
   } finally {
     registriesLoading.value = false
+  }
+}
+
+const fetchCITokens = async () => {
+  if (!isOwner.value) return
+  ciTokensLoading.value = true
+  ciTokensError.value = ''
+  try {
+    ciTokens.value = await listCITokens(route.params.id)
+  } catch (err) {
+    ciTokensError.value = err.message
+  } finally {
+    ciTokensLoading.value = false
   }
 }
 
@@ -1034,6 +1208,74 @@ const openOverrideModal = (budget = null) => {
 const closeOverrideModal = () => {
   showOverrideModal.value = false
   resetOverrideForm()
+}
+
+const toRFC3339 = (value) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+const resetCITokenForm = () => {
+  ciTokenForm.value = { name: '', expires_at: '' }
+  ciTokenCreateError.value = ''
+}
+
+const handleCreateCIToken = async () => {
+  if (!isOwner.value) return
+  ciTokenCreateError.value = ''
+  ciTokenCreating.value = true
+  try {
+    const nameValue = ciTokenForm.value.name.trim()
+    if (!nameValue) {
+      ciTokenCreateError.value = 'Name is required.'
+      ciTokenCreating.value = false
+      return
+    }
+    const expiresValue = ciTokenForm.value.expires_at ? toRFC3339(ciTokenForm.value.expires_at) : null
+    const payload = { name: nameValue }
+    if (expiresValue) {
+      payload.expires_at = expiresValue
+    }
+    const created = await createCIToken(route.params.id, payload)
+    createdTokenValue.value = created.token
+    showTokenModal.value = true
+    resetCITokenForm()
+    await fetchCITokens()
+  } catch (err) {
+    if (err.status === 409) {
+      ciTokenCreateError.value = 'Token name already exists.'
+    } else {
+      ciTokenCreateError.value = err.message
+    }
+  } finally {
+    ciTokenCreating.value = false
+  }
+}
+
+const handleRevokeCIToken = async (token) => {
+  if (!isOwner.value || token.revoked_at) return
+  const confirmed = window.confirm(`Revoke token "${token.name}"?`)
+  if (!confirmed) return
+  revokingTokenId.value = token.id
+  try {
+    await revokeCIToken(route.params.id, token.id)
+    await fetchCITokens()
+  } catch (err) {
+    ciTokensError.value = err.message
+  } finally {
+    revokingTokenId.value = null
+  }
+}
+
+const copyToken = async () => {
+  if (!createdTokenValue.value) return
+  try {
+    await navigator.clipboard?.writeText(createdTokenValue.value)
+  } catch (err) {
+    console.warn('clipboard copy failed', err)
+  }
 }
 
 const handleSaveOverride = async () => {

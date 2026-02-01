@@ -62,6 +62,10 @@ func (b *budgetResolverStub) ResolveBudget(ctx context.Context, userID, projectI
 	return nil, nil
 }
 
+func (b *budgetResolverStub) ResolveBudgetForProject(ctx context.Context, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error) {
+	return nil, nil
+}
+
 type compareRepoStub struct {
 	items map[uuid.UUID]ImageAnalysis
 }

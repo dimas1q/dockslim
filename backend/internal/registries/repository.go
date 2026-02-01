@@ -41,6 +41,39 @@ type UpdateRegistryParams struct {
 	PasswordEnc *[]byte
 }
 
+func (r *Repository) GetRegistryByName(ctx context.Context, projectID uuid.UUID, name string) (Registry, error) {
+	const query = `
+		SELECT id, project_id, name, type, registry_url, username, password_enc, created_at, updated_at
+		FROM registries
+		WHERE project_id = $1 AND name = $2
+	`
+
+	var registry Registry
+	var username sql.NullString
+	var passwordEnc []byte
+	err := r.db.QueryRowContext(ctx, query, projectID, name).Scan(
+		&registry.ID,
+		&registry.ProjectID,
+		&registry.Name,
+		&registry.Type,
+		&registry.RegistryURL,
+		&username,
+		&passwordEnc,
+		&registry.CreatedAt,
+		&registry.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Registry{}, ErrRegistryNotFound
+	}
+	if err != nil {
+		return Registry{}, err
+	}
+	if username.Valid {
+		registry.Username = &username.String
+	}
+	return registry, nil
+}
+
 func (r *Repository) GetActiveKey(ctx context.Context) (EncryptionKey, error) {
 	const query = `
 		SELECT id, key_id, key_material, is_active, created_at

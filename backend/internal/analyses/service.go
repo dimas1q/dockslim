@@ -47,6 +47,7 @@ type Service struct {
 
 type BudgetResolver interface {
 	ResolveBudget(ctx context.Context, userID, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error)
+	ResolveBudgetForProject(ctx context.Context, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error)
 }
 
 func NewService(repo RepositoryStore, members MembershipStore, registries RegistryStore, budgets BudgetResolver) *Service {
@@ -87,40 +88,7 @@ func (s *Service) CreateAnalysis(ctx context.Context, userID, projectID uuid.UUI
 		return ImageAnalysis{}, ErrNotOwner
 	}
 
-	if registryID == uuid.Nil {
-		return ImageAnalysis{}, ErrInvalidRegistry
-	}
-
-	cleanImage := strings.TrimSpace(image)
-	if cleanImage == "" {
-		return ImageAnalysis{}, ErrInvalidImage
-	}
-
-	cleanTag := strings.TrimSpace(tag)
-	if cleanTag == "" {
-		cleanTag = "latest"
-	}
-
-	registry, err := s.registries.GetRegistryForProject(ctx, projectID, registryID)
-	if err != nil {
-		if errors.Is(err, registries.ErrRegistryNotFound) {
-			return ImageAnalysis{}, err
-		}
-		return ImageAnalysis{}, err
-	}
-
-	normalizedImage, err := normalizeImageReference(cleanImage, registry.RegistryURL)
-	if err != nil {
-		return ImageAnalysis{}, err
-	}
-
-	return s.repo.CreateAnalysis(ctx, CreateAnalysisParams{
-		ProjectID:  projectID,
-		RegistryID: &registryID,
-		Image:      normalizedImage,
-		Tag:        cleanTag,
-		Status:     StatusQueued,
-	})
+	return s.createAnalysis(ctx, projectID, registryID, image, tag)
 }
 
 func (s *Service) DeleteAnalysis(ctx context.Context, userID, projectID, analysisID uuid.UUID) error {
@@ -159,6 +127,11 @@ func (s *Service) RerunAnalysis(ctx context.Context, userID, projectID, analysis
 	}
 
 	return s.repo.RerunAnalysis(ctx, projectID, analysisID)
+}
+
+// GetAnalysisForProject returns analysis by id within project without membership checks (CI use).
+func (s *Service) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (ImageAnalysis, error) {
+	return s.repo.GetAnalysisForProject(ctx, projectID, analysisID)
 }
 
 func (s *Service) CompareAnalyses(ctx context.Context, userID, projectID, fromID, toID uuid.UUID) (Comparison, error) {
@@ -203,4 +176,83 @@ func (s *Service) CompareAnalyses(ctx context.Context, userID, projectID, fromID
 	}
 
 	return comparison, nil
+}
+
+// CreateAnalysisForCI bypasses membership checks; project scope is enforced via registry lookup.
+func (s *Service) CreateAnalysisForCI(ctx context.Context, projectID uuid.UUID, registryID uuid.UUID, image, tag string) (ImageAnalysis, error) {
+	return s.createAnalysis(ctx, projectID, registryID, image, tag)
+}
+
+// CompareAnalysesForProject compares two analyses within the same project without membership checks.
+func (s *Service) CompareAnalysesForProject(ctx context.Context, projectID, fromID, toID uuid.UUID) (Comparison, error) {
+	fromAnalysis, err := s.repo.GetAnalysisForProject(ctx, projectID, fromID)
+	if err != nil {
+		return Comparison{}, err
+	}
+	toAnalysis, err := s.repo.GetAnalysisForProject(ctx, projectID, toID)
+	if err != nil {
+		return Comparison{}, err
+	}
+
+	if fromAnalysis.Image != toAnalysis.Image {
+		return Comparison{}, ErrAnalysesDifferentImage
+	}
+	if fromAnalysis.Status != StatusCompleted || toAnalysis.Status != StatusCompleted {
+		return Comparison{}, ErrAnalysesNotCompleted
+	}
+
+	comparison, err := BuildComparison(fromAnalysis, toAnalysis)
+	if err != nil {
+		return Comparison{}, err
+	}
+
+	if s.budgets != nil {
+		resolved, err := s.budgets.ResolveBudgetForProject(ctx, projectID, comparison.Image)
+		if err != nil {
+			return Comparison{}, err
+		}
+		if resolved != nil {
+			eval := budgets.EvaluateBudget(comparison.From.TotalSizeBytes, comparison.To.TotalSizeBytes, resolved)
+			comparison.Budget = &eval
+		}
+	}
+
+	return comparison, nil
+}
+
+func (s *Service) createAnalysis(ctx context.Context, projectID uuid.UUID, registryID uuid.UUID, image, tag string) (ImageAnalysis, error) {
+	if registryID == uuid.Nil {
+		return ImageAnalysis{}, ErrInvalidRegistry
+	}
+
+	cleanImage := strings.TrimSpace(image)
+	if cleanImage == "" {
+		return ImageAnalysis{}, ErrInvalidImage
+	}
+
+	cleanTag := strings.TrimSpace(tag)
+	if cleanTag == "" {
+		cleanTag = "latest"
+	}
+
+	registry, err := s.registries.GetRegistryForProject(ctx, projectID, registryID)
+	if err != nil {
+		if errors.Is(err, registries.ErrRegistryNotFound) {
+			return ImageAnalysis{}, err
+		}
+		return ImageAnalysis{}, err
+	}
+
+	normalizedImage, err := normalizeImageReference(cleanImage, registry.RegistryURL)
+	if err != nil {
+		return ImageAnalysis{}, err
+	}
+
+	return s.repo.CreateAnalysis(ctx, CreateAnalysisParams{
+		ProjectID:  projectID,
+		RegistryID: &registryID,
+		Image:      normalizedImage,
+		Tag:        cleanTag,
+		Status:     StatusQueued,
+	})
 }

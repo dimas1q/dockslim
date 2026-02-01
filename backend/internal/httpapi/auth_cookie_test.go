@@ -87,7 +87,7 @@ func TestMeWithCookie(t *testing.T) {
 	tokenStore := newMemoryKeyStore()
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
-	middleware := auth.NewMiddleware(tokenManager, userStore)
+	middleware := auth.NewMiddleware(tokenManager, userStore, nil)
 	handler := NewAuthHandler(service, time.Hour, CookieConfig{
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
@@ -138,7 +138,7 @@ func TestMeWithoutCookieUnauthorized(t *testing.T) {
 	tokenStore := newMemoryKeyStore()
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
-	middleware := auth.NewMiddleware(tokenManager, userStore)
+	middleware := auth.NewMiddleware(tokenManager, userStore, nil)
 	handler := NewAuthHandler(service, time.Hour, CookieConfig{
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",

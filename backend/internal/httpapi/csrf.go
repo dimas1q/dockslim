@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/dimas1q/dockslim/backend/internal/auth"
+	"github.com/dimas1q/dockslim/backend/internal/citokens"
+	"github.com/google/uuid"
 )
 
 const csrfHeaderName = "X-CSRF-Token"
@@ -30,6 +32,11 @@ func csrfMiddleware(next http.Handler) http.Handler {
 		}
 
 		if hasBearerAuth(r.Header.Get("Authorization")) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if token, ok := citokens.TokenFromContext(r.Context()); ok && token.ID != uuid.Nil {
 			next.ServeHTTP(w, r)
 			return
 		}
