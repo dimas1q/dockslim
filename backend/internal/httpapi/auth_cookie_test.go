@@ -87,7 +87,7 @@ func TestMeWithCookie(t *testing.T) {
 	tokenStore := newMemoryKeyStore()
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
-	middleware := auth.NewMiddleware(tokenManager, userStore, nil)
+	middleware := auth.NewMiddleware(tokenManager, userStore, nil, nil)
 	handler := NewAuthHandler(service, time.Hour, CookieConfig{
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
@@ -138,7 +138,7 @@ func TestMeWithoutCookieUnauthorized(t *testing.T) {
 	tokenStore := newMemoryKeyStore()
 	tokenManager := newTokenManager(t, tokenStore)
 	service := auth.NewService(userStore, tokenManager)
-	middleware := auth.NewMiddleware(tokenManager, userStore, nil)
+	middleware := auth.NewMiddleware(tokenManager, userStore, nil, nil)
 	handler := NewAuthHandler(service, time.Hour, CookieConfig{
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
@@ -213,6 +213,20 @@ func (m *memoryUserStore) GetUserByID(ctx context.Context, id string) (auth.User
 	if !ok {
 		return auth.User{}, auth.ErrUserNotFound
 	}
+	return user, nil
+}
+
+func (m *memoryUserStore) UpdateUserProfile(ctx context.Context, id, login, email string) (auth.User, error) {
+	user, ok := m.usersByID[id]
+	if !ok {
+		return auth.User{}, auth.ErrUserNotFound
+	}
+	user.Login = login
+	user.Email = email
+	user.UpdatedAt = time.Now().UTC()
+	m.usersByID[id] = user
+	m.usersByEmail[email] = user
+	m.usersByLogin[login] = user
 	return user, nil
 }
 

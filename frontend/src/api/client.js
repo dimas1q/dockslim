@@ -64,7 +64,28 @@ export const loginUser = (payload) =>
     body: JSON.stringify(payload),
   })
 
-export const fetchMe = () => apiRequest('/api/v1/me')
+export const fetchAccount = () => apiRequest('/api/v1/account/me')
+
+export const fetchMe = () => fetchAccount()
+
+export const updateAccount = (payload) =>
+  apiRequest('/api/v1/account/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
+export const listApiTokens = () => apiRequest('/api/v1/account/api-tokens')
+
+export const createApiToken = (payload) =>
+  apiRequest('/api/v1/account/api-tokens', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const revokeApiToken = (tokenId) =>
+  apiRequest(`/api/v1/account/api-tokens/${tokenId}/revoke`, {
+    method: 'POST',
+  })
 
 export const logoutUser = () =>
   apiRequest('/api/v1/auth/logout', {

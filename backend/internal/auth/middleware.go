@@ -7,13 +7,15 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dimas1q/dockslim/backend/internal/apitokens"
 	"github.com/dimas1q/dockslim/backend/internal/citokens"
 )
 
 type Middleware struct {
-	tokens   AccessTokenValidator
-	users    UserStore
-	ciTokens CITokenAuthenticator
+	tokens    AccessTokenValidator
+	users     UserStore
+	ciTokens  CITokenAuthenticator
+	apiTokens APITokenAuthenticator
 }
 
 type AccessTokenValidator interface {
@@ -24,8 +26,12 @@ type CITokenAuthenticator interface {
 	Authenticate(ctx context.Context, tokenString string) (citokens.Token, error)
 }
 
-func NewMiddleware(tokens AccessTokenValidator, users UserStore, ciTokens CITokenAuthenticator) *Middleware {
-	return &Middleware{tokens: tokens, users: users, ciTokens: ciTokens}
+type APITokenAuthenticator interface {
+	Authenticate(ctx context.Context, tokenString string) (apitokens.Token, error)
+}
+
+func NewMiddleware(tokens AccessTokenValidator, users UserStore, ciTokens CITokenAuthenticator, apiTokens APITokenAuthenticator) *Middleware {
+	return &Middleware{tokens: tokens, users: users, ciTokens: ciTokens, apiTokens: apiTokens}
 }
 
 func (m *Middleware) Authenticate(next http.Handler) http.Handler {
@@ -38,6 +44,22 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 
 		if strings.HasPrefix(tokenString, citokens.TokenPrefix) {
 			respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		if m.apiTokens != nil && strings.HasPrefix(tokenString, apitokens.TokenPrefix) {
+			token, err := m.apiTokens.Authenticate(r.Context(), tokenString)
+			if err != nil {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			user, err := m.users.GetUserByID(r.Context(), token.UserID.String())
+			if err != nil {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			ctx := WithUser(r.Context(), user)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
@@ -80,6 +102,22 @@ func (m *Middleware) AuthenticateUserOrCIToken(next http.Handler) http.Handler {
 				return
 			}
 			ctx := citokens.WithToken(r.Context(), token)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		if m.apiTokens != nil && strings.HasPrefix(tokenString, apitokens.TokenPrefix) {
+			token, err := m.apiTokens.Authenticate(r.Context(), tokenString)
+			if err != nil {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			user, err := m.users.GetUserByID(r.Context(), token.UserID.String())
+			if err != nil {
+				respondJSONError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+			ctx := WithUser(r.Context(), user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}

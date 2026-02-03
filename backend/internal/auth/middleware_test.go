@@ -6,13 +6,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dimas1q/dockslim/backend/internal/apitokens"
 	"github.com/dimas1q/dockslim/backend/internal/citokens"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 func TestMiddlewareUnauthorizedJSON(t *testing.T) {
-	mw := NewMiddleware(nil, nil, nil)
+	mw := NewMiddleware(nil, nil, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
@@ -76,6 +77,10 @@ func (u *userStoreStub) GetUserByLogin(ctx context.Context, login string) (User,
 	return User{}, ErrUserNotFound
 }
 
+func (u *userStoreStub) UpdateUserProfile(ctx context.Context, id, login, email string) (User, error) {
+	return User{}, nil
+}
+
 type ciAuthenticatorStub struct {
 	token  citokens.Token
 	err    error
@@ -87,12 +92,23 @@ func (c *ciAuthenticatorStub) Authenticate(ctx context.Context, tokenString stri
 	return c.token, c.err
 }
 
+type apiAuthenticatorStub struct {
+	token  apitokens.Token
+	err    error
+	called bool
+}
+
+func (a *apiAuthenticatorStub) Authenticate(ctx context.Context, tokenString string) (apitokens.Token, error) {
+	a.called = true
+	return a.token, a.err
+}
+
 func TestAuthenticateUsesCookieWhenNoAuthorizationHeader(t *testing.T) {
 	userID := uuid.New()
 	user := User{ID: userID, Email: "u@example.com"}
 	tm := &tokenManagerStub{claims: &AccessTokenClaims{RegisteredClaims: jwt.RegisteredClaims{Subject: userID.String()}}}
 	users := &userStoreStub{user: user}
-	mw := NewMiddleware(tm, users, nil)
+	mw := NewMiddleware(tm, users, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	req.AddCookie(&http.Cookie{Name: AccessCookieName, Value: "token"})
@@ -114,7 +130,7 @@ func TestAuthenticateUsesCookieWhenNoAuthorizationHeader(t *testing.T) {
 func TestAuthenticateRejectsCIToken(t *testing.T) {
 	tm := &tokenManagerStub{}
 	users := &userStoreStub{}
-	mw := NewMiddleware(tm, users, nil)
+	mw := NewMiddleware(tm, users, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	req.Header.Set("Authorization", "Bearer "+citokens.TokenPrefix+"abc")
@@ -136,7 +152,7 @@ func TestAuthenticateUserOrCITokenAllowsCIToken(t *testing.T) {
 	ciAuth := &ciAuthenticatorStub{token: citokens.Token{ID: uuid.New(), ProjectID: uuid.New()}}
 	tm := &tokenManagerStub{}
 	users := &userStoreStub{}
-	mw := NewMiddleware(tm, users, ciAuth)
+	mw := NewMiddleware(tm, users, ciAuth, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ci/reports/image", nil)
 	req.Header.Set("Authorization", "Bearer "+citokens.TokenPrefix+"abc")
@@ -155,5 +171,59 @@ func TestAuthenticateUserOrCITokenAllowsCIToken(t *testing.T) {
 	}
 	if tm.called {
 		t.Fatalf("token manager should not be used for CI token")
+	}
+}
+
+func TestAuthenticateAcceptsAPIToken(t *testing.T) {
+	userID := uuid.New()
+	apiAuth := &apiAuthenticatorStub{token: apitokens.Token{ID: uuid.New(), UserID: userID}}
+	users := &userStoreStub{user: User{ID: userID}}
+	tm := &tokenManagerStub{}
+	mw := NewMiddleware(tm, users, nil, apiAuth)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer "+apitokens.TokenPrefix+"abc")
+	rec := httptest.NewRecorder()
+
+	called := false
+	mw.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})).ServeHTTP(rec, req)
+
+	if !called {
+		t.Fatalf("expected handler to be called")
+	}
+	if !apiAuth.called {
+		t.Fatalf("expected api token authenticator to be called")
+	}
+	if tm.called {
+		t.Fatalf("token manager should not be used for api token")
+	}
+}
+
+func TestAuthenticateUserOrCITokenAllowsAPIToken(t *testing.T) {
+	userID := uuid.New()
+	apiAuth := &apiAuthenticatorStub{token: apitokens.Token{ID: uuid.New(), UserID: userID}}
+	users := &userStoreStub{user: User{ID: userID}}
+	tm := &tokenManagerStub{}
+	mw := NewMiddleware(tm, users, nil, apiAuth)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ci/reports/image", nil)
+	req.Header.Set("Authorization", "Bearer "+apitokens.TokenPrefix+"abc")
+	rec := httptest.NewRecorder()
+
+	called := false
+	mw.AuthenticateUserOrCIToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})).ServeHTTP(rec, req)
+
+	if !called {
+		t.Fatalf("expected handler to be called")
+	}
+	if !apiAuth.called {
+		t.Fatalf("expected api token authenticator to be called")
+	}
+	if tm.called {
+		t.Fatalf("token manager should not be used for api token")
 	}
 }

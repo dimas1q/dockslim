@@ -6,13 +6,17 @@
           <p class="text-xs uppercase tracking-widest text-slate-400">DockSlim</p>
           <h1 class="text-2xl font-semibold">Container insights</h1>
         </div>
-        <button
-          v-if="auth.user"
-          class="text-sm text-slate-300 hover:text-white"
-          @click="handleLogout"
-        >
-          Logout
-        </button>
+        <div v-if="auth.user" class="flex items-center gap-3">
+          <RouterLink
+            to="/account/settings"
+            class="rounded-lg border border-slate-800 px-3 py-1.5 text-sm text-indigo-200 hover:border-indigo-400/80"
+          >
+            {{ auth.user.login || 'Account' }}
+          </RouterLink>
+          <button class="text-sm text-slate-300 hover:text-white" @click="handleLogout">
+            Logout
+          </button>
+        </div>
       </header>
       <RouterView />
     </div>
@@ -21,7 +25,7 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { RouterView, useRouter } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { loadCurrentUser, logout, useAuth } from './stores/auth'
 
 const auth = useAuth()

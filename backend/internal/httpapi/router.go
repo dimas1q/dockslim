@@ -11,6 +11,7 @@ import (
 type Dependencies struct {
 	AuthHandler       *AuthHandler
 	AuthMiddleware    *auth.Middleware
+	AccountHandler    *AccountHandler
 	ProjectsHandler   *ProjectsHandler
 	RegistriesHandler *RegistriesHandler
 	AnalysesHandler   *AnalysesHandler
@@ -40,6 +41,15 @@ func NewRouter(deps Dependencies) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(deps.AuthMiddleware.Authenticate)
 			r.Get("/me", deps.AuthHandler.Me)
+			if deps.AccountHandler != nil {
+				r.Route("/account", func(r chi.Router) {
+					r.Get("/me", deps.AccountHandler.Me)
+					r.Patch("/me", deps.AccountHandler.UpdateProfile)
+					r.Get("/api-tokens", deps.AccountHandler.ListAPITokens)
+					r.Post("/api-tokens", deps.AccountHandler.CreateAPIToken)
+					r.Post("/api-tokens/{tokenId}/revoke", deps.AccountHandler.RevokeAPIToken)
+				})
+			}
 			r.Route("/projects", func(r chi.Router) {
 				r.Post("/", deps.ProjectsHandler.Create)
 				r.Get("/", deps.ProjectsHandler.List)

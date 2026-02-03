@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dimas1q/dockslim/backend/internal/apitokens"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/citokens"
 	"github.com/dimas1q/dockslim/backend/internal/projects"
@@ -22,7 +23,7 @@ func TestCSRFProtectionRequiresHeader(t *testing.T) {
 	authService := auth.NewService(userStore, tokenManager)
 	projectRepo := newMemoryProjectRepo()
 	projectService := projects.NewService(projectRepo)
-	middleware := auth.NewMiddleware(tokenManager, userStore, nil)
+	middleware := auth.NewMiddleware(tokenManager, userStore, nil, nil)
 	authHandler := NewAuthHandler(authService, time.Hour, CookieConfig{
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
@@ -80,7 +81,7 @@ func TestCSRFProtectionAcceptsMatchingHeader(t *testing.T) {
 	authService := auth.NewService(userStore, tokenManager)
 	projectRepo := newMemoryProjectRepo()
 	projectService := projects.NewService(projectRepo)
-	middleware := auth.NewMiddleware(tokenManager, userStore, nil)
+	middleware := auth.NewMiddleware(tokenManager, userStore, nil, nil)
 	authHandler := NewAuthHandler(authService, time.Hour, CookieConfig{
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
@@ -182,6 +183,22 @@ func TestCSRFBYPASSSucceedsWithCITokenContext(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/ci/reports/image", nil)
 	req = req.WithContext(citokens.WithToken(req.Context(), citokens.Token{ID: uuid.New()}))
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestCSRFBYPASSSucceedsWithAPITokenHeader(t *testing.T) {
+	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/account/api-tokens", nil)
+	req.Header.Set("Authorization", "Bearer "+apitokens.TokenPrefix+"abc")
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)

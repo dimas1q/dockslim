@@ -22,6 +22,7 @@ type UserStore interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByLogin(ctx context.Context, login string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
+	UpdateUserProfile(ctx context.Context, id, login, email string) (User, error)
 }
 
 type TokenIssuer interface {
@@ -110,6 +111,38 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (User,
 	}
 
 	return user, token, nil
+}
+
+type UpdateProfileParams struct {
+	Login *string
+	Email *string
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, userID string, params UpdateProfileParams) (User, error) {
+	user, err := s.users.GetUserByID(ctx, userID)
+	if err != nil {
+		return User{}, err
+	}
+
+	login := user.Login
+	if params.Login != nil {
+		cleanLogin := normalizeLogin(*params.Login)
+		if !isValidLogin(cleanLogin) {
+			return User{}, ErrInvalidLogin
+		}
+		login = cleanLogin
+	}
+
+	email := user.Email
+	if params.Email != nil {
+		cleanEmail := normalizeEmail(*params.Email)
+		if !isValidEmail(cleanEmail) {
+			return User{}, ErrInvalidEmail
+		}
+		email = cleanEmail
+	}
+
+	return s.users.UpdateUserProfile(ctx, userID, login, email)
 }
 
 func normalizeEmail(email string) string {

@@ -56,6 +56,10 @@ func (c *conflictUserStore) GetUserByID(ctx context.Context, id string) (auth.Us
 	return auth.User{}, auth.ErrUserNotFound
 }
 
+func (c *conflictUserStore) UpdateUserProfile(ctx context.Context, id, login, email string) (auth.User, error) {
+	return auth.User{}, auth.ErrEmailAlreadyExists
+}
+
 type noopTokenIssuer struct{}
 
 func (n *noopTokenIssuer) GenerateAccessToken(ctx context.Context, user auth.User) (string, error) {

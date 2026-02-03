@@ -5,6 +5,7 @@ import ProjectsView from './views/ProjectsView.vue'
 import ProjectDetailView from './views/ProjectDetailView.vue'
 import AnalysisDetailView from './views/AnalysisDetailView.vue'
 import AnalysisCompareView from './views/AnalysisCompareView.vue'
+import AccountSettingsView from './views/AccountSettingsView.vue'
 import { loadCurrentUser, useAuth } from './stores/auth'
 
 const routes = [
@@ -29,6 +30,11 @@ const routes = [
   {
     path: '/projects/:id/analyses/compare',
     component: AnalysisCompareView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/account/settings',
+    component: AccountSettingsView,
     meta: { requiresAuth: true },
   },
 ]

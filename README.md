@@ -60,110 +60,125 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password123"}'
 
-# Login (stores the HttpOnly access cookie + CSRF cookie)
-curl -c /tmp/dockslim.cookies -s -X POST http://localhost:8080/api/v1/auth/login \
+# Login (used for UI access; API calls below rely on personal API tokens)
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password123"}'
 
-# Fetch the current user
-curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/me
-
-# Logout
-curl -X POST -b /tmp/dockslim.cookies \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  http://localhost:8080/api/v1/auth/logout
+# Fetch the current user with an API token (preferred for API use)
+API_TOKEN="ds_api_..." # create via /account/settings in the UI
+curl -H "Authorization: Bearer ${API_TOKEN}" http://localhost:8080/api/v1/account/me
 ```
 
 Projects API:
 
 ```bash
-# Create project (include X-CSRF-Token from dockslim_csrf cookie)
-CSRF_TOKEN=$(grep dockslim_csrf /tmp/dockslim.cookies | awk '{print $7}')
+# Create project
 curl -X POST http://localhost:8080/api/v1/projects \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"name": "My Project"}'
 
 # List projects
-curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/projects
+curl -H "Authorization: Bearer ${API_TOKEN}" http://localhost:8080/api/v1/projects
 
 # Get project by ID
 PROJECT_ID="your-project-id"
-curl -b /tmp/dockslim.cookies http://localhost:8080/api/v1/projects/${PROJECT_ID}
+curl -H "Authorization: Bearer ${API_TOKEN}" http://localhost:8080/api/v1/projects/${PROJECT_ID}
 
 # Update project name (owner only)
 curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID} \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"name": "Renamed Project"}'
 
 # Delete project (owner only)
 curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID} \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies
+  -H "Authorization: Bearer ${API_TOKEN}"
 ```
+
+### Personal API tokens (user scoped)
+
+Personal tokens let you call the API without CSRF headers.
+
+**Create / revoke in UI**
+1. Log in to the web app.
+2. Open **Account → Account settings** (`/account/settings`).
+3. In *Personal API tokens*, choose a name and create. Copy the token immediately (it is shown only once).
+4. Revoke from the same table when you’re done.
+
+**Use in API calls**
+
+```
+API_TOKEN="ds_api_..." # value shown once in the UI
+
+# Example: list your projects without CSRF
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  http://localhost:8080/api/v1/projects
+
+# Example: update profile
+curl -X PATCH http://localhost:8080/api/v1/account/me \
+  -H "Authorization: Bearer ${API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"login":"new-handle","email":"me@example.com"}'
+```
+
+Notes:
+- API tokens are user-scoped (not project/CI). They bypass CSRF.
+- Tokens are rejected after revocation or expiry; use HTTPS in production.
 
 Registries API (project owners)
 
 ```bash
 # List registries
-curl -b /tmp/dockslim.cookies \
+curl -H "Authorization: Bearer ${API_TOKEN}" \
   http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries
 
 # Create registry
 curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"name":"prod","type":"generic","registry_url":"https://registry.example.com","username":"ci","password":"token"}'
 
 # Update registry
 curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries/${REGISTRY_ID} \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"name":"prod-eu","registry_url":"https://eu.registry.example.com","username":"ci","token":"new-token"}'
 
 # Delete registry
 curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID}/registries/${REGISTRY_ID} \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies
+  -H "Authorization: Bearer ${API_TOKEN}"
 ```
 
 Budgets API (project owners)
 
 ```bash
 # Get budgets (default + overrides)
-curl -b /tmp/dockslim.cookies \
+curl -H "Authorization: Bearer ${API_TOKEN}" \
   http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets
 
 # Upsert default budget
 curl -X PUT http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/default \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"warn_delta_mb":50,"fail_delta_mb":150,"hard_limit_mb":2048}'
 
 # Create per-image override
 curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/overrides \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"image":"company/app","warn_delta_mb":30,"fail_delta_mb":120}'
 
 # Update override
 curl -X PATCH http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/overrides/${BUDGET_ID} \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"fail_delta_mb":140}'
 
 # Delete override
 curl -X DELETE http://localhost:8080/api/v1/projects/${PROJECT_ID}/budgets/overrides/${BUDGET_ID} \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies
+  -H "Authorization: Bearer ${API_TOKEN}"
 ```
 
 Analysis comparison:
@@ -171,7 +186,7 @@ Analysis comparison:
 ```bash
 FROM_ANALYSIS_ID="analysis-id-a"
 TO_ANALYSIS_ID="analysis-id-b"
-curl -b /tmp/dockslim.cookies \
+curl -H "Authorization: Bearer ${API_TOKEN}" \
   "http://localhost:8080/api/v1/projects/${PROJECT_ID}/analyses/compare?from=${FROM_ANALYSIS_ID}&to=${TO_ANALYSIS_ID}"
 ```
 
@@ -179,7 +194,7 @@ In the frontend, open a completed analysis or the project analyses list and use 
 
 ### CI tokens & automation
 
-Project owners can issue project-scoped CI tokens to let pipelines run analyses, generate compare reports, and post PR/MR comments without user cookies.
+Project owners can issue project-scoped CI tokens to let pipelines run analyses, generate compare reports, and post PR/MR comments without a user session.
 
 ```bash
 # Use the token (Authorization: Bearer ds_ci_<...>)
@@ -208,20 +223,18 @@ curl -X POST http://localhost:8080/api/v1/ci/comments \
 
 ```bash
 # List CI tokens (metadata only)
-curl -b /tmp/dockslim.cookies \
+curl -H "Authorization: Bearer ${API_TOKEN}" \
   http://localhost:8080/api/v1/projects/${PROJECT_ID}/ci-tokens
 
 # Create CI token (plaintext token returned once)
 curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/ci-tokens \
   -H "Content-Type: application/json" \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies \
+  -H "Authorization: Bearer ${API_TOKEN}" \
   -d '{"name":"ci-runner","expires_at":"2026-03-01T00:00:00Z"}'
 
 # Revoke CI token
 curl -X POST http://localhost:8080/api/v1/projects/${PROJECT_ID}/ci-tokens/${TOKEN_ID}/revoke \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -b /tmp/dockslim.cookies
+  -H "Authorization: Bearer ${API_TOKEN}"
 ```
 
 Registry lookup for CI:
@@ -270,7 +283,7 @@ npm run dev
 
 Then open http://localhost:5173 to view the DockSlim UI.
 
-The Vite dev server proxies `/api` and `/health` to the backend (configured via `VITE_API_PROXY_TARGET`), so the frontend can use cookie-based auth without CORS setup in development.
+The Vite dev server proxies `/api` and `/health` to the backend (configured via `VITE_API_PROXY_TARGET`), so the frontend can reach the API without extra CORS setup in development.
 
 ## Docker Compose Dev Stack
 

@@ -131,6 +131,42 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (User, error) {
 	return user, nil
 }
 
+func (r *Repository) UpdateUserProfile(ctx context.Context, id, login, email string) (User, error) {
+	const query = `
+		UPDATE users
+		SET login = $2, email = $3, updated_at = NOW()
+		WHERE id = $1
+		RETURNING id, login, email, password_hash, created_at, updated_at
+	`
+
+	var user User
+	err := r.db.QueryRowContext(ctx, query, id, login, email).Scan(
+		&user.ID,
+		&user.Login,
+		&user.Email,
+		&user.PasswordHash,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return User{}, ErrUserNotFound
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			switch pgErr.ConstraintName {
+			case "users_email_key":
+				return User{}, ErrEmailAlreadyExists
+			case "idx_users_login_unique", "users_login_key":
+				return User{}, ErrLoginAlreadyExists
+			}
+		}
+		return User{}, err
+	}
+
+	return user, nil
+}
+
 func (r *Repository) ListActiveKeys(ctx context.Context) ([]AuthKey, error) {
 	const query = `
 		SELECT id, key_id, signing_key, algorithm, is_active, created_at, rotated_at
