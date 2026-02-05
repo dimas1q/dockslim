@@ -2,7 +2,7 @@
   "app": {
     "brand": "DockSlim",
     "tagline": "Container insights",
-    "accountFallback": "Account",
+    "accountFallback": "Settings",
     "logout": "Logout"
   },
   "nav": {

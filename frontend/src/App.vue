@@ -11,7 +11,7 @@
             to="/account/settings"
             class="rounded-lg border border-slate-800 px-3 py-1.5 text-sm text-indigo-200 hover:border-indigo-400/80"
           >
-            {{ auth.user.login || t('app.accountFallback') }}
+            {{ t('app.accountFallback') }}
           </RouterLink>
           <button class="text-sm text-slate-300 hover:text-white" @click="handleLogout">
             {{ t('app.logout') }}

@@ -2,7 +2,7 @@
   "app": {
     "brand": "DockSlim",
     "tagline": "Инсайты по контейнерам",
-    "accountFallback": "Аккаунт",
+    "accountFallback": "Настройки",
     "logout": "Выйти"
   },
   "nav": {
