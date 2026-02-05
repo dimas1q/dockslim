@@ -1,21 +1,25 @@
 <template>
-  <div class="space-y-6">
-    <RouterLink class="text-sm text-indigo-400 hover:text-indigo-300" to="/projects">
+  <div class="space-y-10">
+    <RouterLink class="link-subtle text-sm" to="/projects">
       {{ t('nav.backToProjects') }}
     </RouterLink>
 
-    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <p v-if="loading" class="text-sm text-slate-400">{{ t('projectDetail.loadingProject') }}</p>
-      <p v-else-if="error" class="text-sm text-red-400">{{ error }}</p>
+    <div class="panel p-6 space-y-4 ds-reveal">
+      <div v-if="loading" class="space-y-3">
+        <div class="h-5 w-40 rounded skeleton"></div>
+        <div class="h-4 w-72 rounded skeleton"></div>
+        <div class="h-24 rounded-xl skeleton"></div>
+      </div>
+      <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>
       <div v-else class="space-y-4">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 class="text-2xl font-semibold">{{ t('projectDetail.settingsTitle') }}</h2>
-            <p class="text-slate-400 mt-2">{{ t('projectDetail.settingsSubtitle') }}</p>
+            <h2 class="text-2xl font-semibold text-ink">{{ t('projectDetail.settingsTitle') }}</h2>
+            <p class="text-sm text-muted mt-2">{{ t('projectDetail.settingsSubtitle') }}</p>
           </div>
           <button
             v-if="isOwner"
-            class="inline-flex items-center justify-center rounded-lg border border-red-500/60 px-4 py-2 text-sm text-red-300 hover:bg-red-500/10"
+            class="btn btn-danger"
             :disabled="deleting"
             @click="handleDelete"
           >
@@ -24,23 +28,23 @@
         </div>
         <form class="grid gap-4 md:grid-cols-2" @submit.prevent="handleUpdateProject">
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.nameLabel') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.nameLabel') }}</label>
             <input
               v-model="settingsForm.name"
               type="text"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              class="input"
               :disabled="!isOwner"
             />
-            <p v-if="settingsErrors.name" class="text-xs text-red-400">
+            <p v-if="settingsErrors.name" class="text-xs text-danger">
               {{ settingsErrors.name }}
             </p>
           </div>
           <div class="space-y-1 md:col-span-2">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.descriptionLabel') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.descriptionLabel') }}</label>
             <textarea
               v-model="settingsForm.description"
               rows="3"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              class="textarea"
               :disabled="!isOwner"
               :placeholder="t('projectDetail.descriptionPlaceholder')"
             ></textarea>
@@ -49,34 +53,34 @@
             <button
               v-if="isOwner"
               type="submit"
-              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+              class="btn btn-primary"
               :disabled="savingProject || !settingsDirty"
             >
               {{ savingProject ? t('common.saving') : t('common.saveSettings') }}
             </button>
-            <span v-if="settingsSuccess" class="text-xs text-emerald-400">
+            <span v-if="settingsSuccess" class="text-xs text-success">
               {{ settingsSuccess }}
             </span>
           </div>
         </form>
-        <p v-if="settingsError" class="text-sm text-red-400">{{ settingsError }}</p>
-        <p v-if="!isOwner && project" class="text-xs text-slate-500">
+        <p v-if="settingsError" class="text-sm text-danger">{{ settingsError }}</p>
+        <p v-if="!isOwner && project" class="text-xs text-subtle">
           {{ t('projectDetail.ownerOnlySettings') }}
         </p>
-        <p v-if="deleteError" class="text-sm text-red-400">{{ deleteError }}</p>
+        <p v-if="deleteError" class="text-sm text-danger">{{ deleteError }}</p>
       </div>
     </div>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+    <section class="panel p-6 space-y-6 ds-reveal">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 class="text-xl font-semibold">{{ t('projectDetail.budgetsTitle') }}</h3>
-          <p class="text-sm text-slate-400 mt-1">{{ t('projectDetail.budgetsSubtitle') }}</p>
+          <p class="text-sm text-muted mt-1">{{ t('projectDetail.budgetsSubtitle') }}</p>
         </div>
         <div class="flex items-center gap-3">
           <button
             v-if="isOwner"
-            class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+            class="btn btn-primary"
             @click="openOverrideModal()"
           >
             {{ t('projectDetail.addOverride') }}
@@ -84,45 +88,45 @@
         </div>
       </div>
 
-      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
+      <div class="surface p-5 space-y-4">
         <div class="flex items-center justify-between">
           <div>
-            <h4 class="text-sm font-semibold text-slate-200">{{ t('projectDetail.projectDefault') }}</h4>
-            <p class="text-xs text-slate-400">{{ t('projectDetail.projectDefaultSubtitle') }}</p>
+            <h4 class="text-sm font-semibold text-ink">{{ t('projectDetail.projectDefault') }}</h4>
+            <p class="text-xs text-muted">{{ t('projectDetail.projectDefaultSubtitle') }}</p>
           </div>
-          <span v-if="defaultBudgetSuccess" class="text-xs text-emerald-400">{{ defaultBudgetSuccess }}</span>
+          <span v-if="defaultBudgetSuccess" class="text-xs text-success">{{ defaultBudgetSuccess }}</span>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.warnDelta') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.warnDelta') }}</label>
             <input
               v-model="defaultBudgetForm.warn_delta_mb"
               type="number"
               min="0"
               step="1"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              class="input"
               :disabled="!isOwner"
             />
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.failDelta') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.failDelta') }}</label>
             <input
               v-model="defaultBudgetForm.fail_delta_mb"
               type="number"
               min="0"
               step="1"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              class="input"
               :disabled="!isOwner"
             />
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.hardLimit') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.hardLimit') }}</label>
             <input
               v-model="defaultBudgetForm.hard_limit_mb"
               type="number"
               min="0"
               step="1"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              class="input"
               :disabled="!isOwner"
             />
           </div>
@@ -130,29 +134,29 @@
         <div class="flex items-center gap-3">
           <button
             v-if="isOwner"
-            class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+            class="btn btn-primary"
             :disabled="defaultBudgetSaving"
             @click="handleSaveDefaultBudget"
           >
             {{ defaultBudgetSaving ? t('common.saving') : t('common.saveDefault') }}
           </button>
-          <p v-if="budgetsError" class="text-sm text-red-400">{{ budgetsError }}</p>
-          <p v-else-if="budgetsLoading" class="text-sm text-slate-400">{{ t('projectDetail.budgetsLoading') }}</p>
-          <p v-else-if="!isOwner" class="text-xs text-slate-500">{{ t('projectDetail.readOnlyOwner') }}</p>
+          <p v-if="budgetsError" class="text-sm text-danger">{{ budgetsError }}</p>
+          <p v-else-if="budgetsLoading" class="text-sm text-muted">{{ t('projectDetail.budgetsLoading') }}</p>
+          <p v-else-if="!isOwner" class="text-xs text-subtle">{{ t('projectDetail.readOnlyOwner') }}</p>
         </div>
       </div>
 
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <p class="text-sm font-semibold text-slate-200">{{ t('projectDetail.overridesTitle') }}</p>
-          <p class="text-xs text-slate-500">{{ t('projectDetail.overridesHint') }}</p>
+          <p class="text-sm font-semibold text-ink">{{ t('projectDetail.overridesTitle') }}</p>
+          <p class="text-xs text-subtle">{{ t('projectDetail.overridesHint') }}</p>
         </div>
-        <p v-if="budgetOverrides.length === 0" class="text-sm text-slate-400">
+        <p v-if="budgetOverrides.length === 0" class="text-sm text-muted">
           {{ t('projectDetail.noOverrides') }}
         </p>
         <div v-else class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-500">
+          <table class="table">
+            <thead>
               <tr>
                 <th class="py-2 pr-4">{{ t('common.image') }}</th>
                 <th class="py-2 pr-4">{{ t('projectDetail.warnDelta') }}</th>
@@ -161,24 +165,24 @@
                 <th class="py-2 text-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800">
-              <tr v-for="budget in budgetOverrides" :key="budget.id" class="text-slate-200">
+            <tbody>
+              <tr v-for="budget in budgetOverrides" :key="budget.id">
                 <td class="py-3 pr-4 font-mono text-xs">{{ budget.image }}</td>
-                <td class="py-3 pr-4 text-slate-300">
+                <td class="py-3 pr-4 text-muted">
                   {{
                     budget.warn_delta_mb !== null && budget.warn_delta_mb !== undefined
                       ? `${budget.warn_delta_mb} ${t('units.mb')}`
                       : t('common.empty')
                   }}
                 </td>
-                <td class="py-3 pr-4 text-slate-300">
+                <td class="py-3 pr-4 text-muted">
                   {{
                     budget.fail_delta_mb !== null && budget.fail_delta_mb !== undefined
                       ? `${budget.fail_delta_mb} ${t('units.mb')}`
                       : t('common.empty')
                   }}
                 </td>
-                <td class="py-3 pr-4 text-slate-300">
+                <td class="py-3 pr-4 text-muted">
                   {{
                     budget.hard_limit_mb !== null && budget.hard_limit_mb !== undefined
                       ? `${budget.hard_limit_mb} ${t('units.mb')}`
@@ -189,7 +193,7 @@
                   <div class="flex items-center justify-end gap-3">
                     <button
                       v-if="isOwner"
-                      class="text-xs text-indigo-300 hover:text-indigo-200"
+                      class="text-xs text-primary hover:text-primary-strong"
                       type="button"
                       @click="openOverrideModal(budget)"
                     >
@@ -197,7 +201,7 @@
                     </button>
                     <button
                       v-if="isOwner"
-                      class="text-xs text-red-300 hover:text-red-200"
+                      class="text-xs text-danger hover:text-danger/80"
                       type="button"
                       @click="handleDeleteOverride(budget.id)"
                     >
@@ -211,145 +215,143 @@
         </div>
       </div>
 
-      <div
-        v-if="showOverrideModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
-      >
-        <div class="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <h4 class="text-lg font-semibold text-slate-100">
-                {{ editingOverride ? t('projectDetail.editOverrideTitle') : t('projectDetail.addOverrideTitle') }}
-              </h4>
-              <p class="text-xs text-slate-400">{{ t('projectDetail.overrideHint') }}</p>
-            </div>
-            <button class="text-slate-400 hover:text-slate-200" type="button" @click="closeOverrideModal">
-              ✕
-            </button>
-          </div>
-          <div class="space-y-4">
-            <div class="space-y-1">
-              <label class="text-xs text-slate-400">{{ t('common.image') }}</label>
-              <input
-                v-model="overrideForm.image"
-                type="text"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-                :disabled="overrideSaving"
-              />
-            </div>
-            <div class="grid gap-3 md:grid-cols-3">
-              <div class="space-y-1">
-                <label class="text-xs text-slate-400">{{ t('projectDetail.warnDelta') }}</label>
-              <input
-                v-model="overrideForm.warn_delta_mb"
-                type="number"
-                min="0"
-                step="1"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-                :disabled="overrideSaving"
-              />
-              </div>
-              <div class="space-y-1">
-                <label class="text-xs text-slate-400">{{ t('projectDetail.failDelta') }}</label>
-              <input
-                v-model="overrideForm.fail_delta_mb"
-                type="number"
-                min="0"
-                step="1"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-                :disabled="overrideSaving"
-              />
-              </div>
-              <div class="space-y-1">
-                <label class="text-xs text-slate-400">{{ t('projectDetail.hardLimit') }}</label>
-              <input
-                v-model="overrideForm.hard_limit_mb"
-                type="number"
-                min="0"
-                step="1"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-                :disabled="overrideSaving"
-              />
-              </div>
-            </div>
-            <p v-if="overrideError" class="text-sm text-red-400">{{ overrideError }}</p>
-            <div class="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                class="text-sm text-slate-400 hover:text-slate-200"
-                :disabled="overrideSaving"
-                @click="closeOverrideModal"
-              >
-                {{ t('common.cancel') }}
+      <Transition name="modal-fade">
+        <div
+          v-if="showOverrideModal"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-base/80 backdrop-blur-sm px-4"
+        >
+          <Transition name="modal-panel">
+            <div class="panel w-full max-w-lg p-6 space-y-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h4 class="text-lg font-semibold text-ink">
+                    {{ editingOverride ? t('projectDetail.editOverrideTitle') : t('projectDetail.addOverrideTitle') }}
+                  </h4>
+                  <p class="text-xs text-muted">{{ t('projectDetail.overrideHint') }}</p>
+                </div>
+              <button class="btn btn-ghost btn-icon" type="button" @click="closeOverrideModal" aria-label="Close">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path :d="closeIcon" />
+                </svg>
               </button>
-              <button
-                type="button"
-                class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
-                :disabled="overrideSaving"
-                @click="handleSaveOverride"
-              >
-                {{ overrideSaving ? t('common.saving') : t('common.saveOverride') }}
-              </button>
+              </div>
+              <div class="space-y-4">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-subtle">{{ t('common.image') }}</label>
+                  <input
+                    v-model="overrideForm.image"
+                    type="text"
+                    class="input"
+                    :disabled="overrideSaving"
+                  />
+                </div>
+                <div class="grid gap-3 md:grid-cols-3">
+                  <div class="space-y-1">
+                    <label class="text-xs font-medium text-subtle">{{ t('projectDetail.warnDelta') }}</label>
+                    <input
+                      v-model="overrideForm.warn_delta_mb"
+                      type="number"
+                      min="0"
+                      step="1"
+                      class="input"
+                      :disabled="overrideSaving"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="text-xs font-medium text-subtle">{{ t('projectDetail.failDelta') }}</label>
+                    <input
+                      v-model="overrideForm.fail_delta_mb"
+                      type="number"
+                      min="0"
+                      step="1"
+                      class="input"
+                      :disabled="overrideSaving"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="text-xs font-medium text-subtle">{{ t('projectDetail.hardLimit') }}</label>
+                    <input
+                      v-model="overrideForm.hard_limit_mb"
+                      type="number"
+                      min="0"
+                      step="1"
+                      class="input"
+                      :disabled="overrideSaving"
+                    />
+                  </div>
+                </div>
+                <p v-if="overrideError" class="text-sm text-danger">{{ overrideError }}</p>
+                <div class="flex items-center justify-end gap-3">
+                  <button type="button" class="btn btn-ghost" :disabled="overrideSaving" @click="closeOverrideModal">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="btn btn-primary" :disabled="overrideSaving" @click="handleSaveOverride">
+                    {{ overrideSaving ? t('common.saving') : t('common.saveOverride') }}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </Transition>
         </div>
-      </div>
+      </Transition>
     </section>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+    <section class="panel p-6 space-y-6 ds-reveal">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 class="text-xl font-semibold">{{ t('projectDetail.ciTokensTitle') }}</h3>
-          <p class="text-sm text-slate-400 mt-1">{{ t('projectDetail.ciTokensSubtitle') }}</p>
+          <p class="text-sm text-muted mt-1">{{ t('projectDetail.ciTokensSubtitle') }}</p>
         </div>
       </div>
 
-      <p v-if="!isOwner && project" class="text-xs text-slate-500">{{ t('projectDetail.ownerOnlyTokens') }}</p>
+      <p v-if="!isOwner && project" class="text-xs text-subtle">{{ t('projectDetail.ownerOnlyTokens') }}</p>
 
-      <div v-if="isOwner" class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
-        <h4 class="text-sm font-semibold text-slate-200">{{ t('projectDetail.ciCreateTitle') }}</h4>
+      <div v-if="isOwner" class="surface p-5 space-y-4">
+        <h4 class="text-sm font-semibold text-ink">{{ t('projectDetail.ciCreateTitle') }}</h4>
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('common.name') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('common.name') }}</label>
             <input
               v-model="ciTokenForm.name"
               type="text"
               :placeholder="t('projectDetail.ciTokenPlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('common.expiresAtOptional') }}</label>
-            <input
+            <label class="text-xs font-medium text-subtle">{{ t('common.expiresAtOptional') }}</label>
+            <BaseDatePicker
               v-model="ciTokenForm.expires_at"
-              type="datetime-local"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              :locale="locale"
+              :placeholder="t('common.datePlaceholder')"
+              :clear-label="t('common.clear')"
+              :close-label="t('common.close')"
             />
           </div>
         </div>
-        <p class="text-xs text-slate-500">{{ t('projectDetail.ciTokenOnce') }}</p>
+        <p class="text-xs text-subtle">{{ t('projectDetail.ciTokenOnce') }}</p>
         <div class="flex items-center gap-3">
           <button
-            class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+            class="btn btn-primary"
             :disabled="ciTokenCreating"
             @click="handleCreateCIToken"
           >
             {{ ciTokenCreating ? t('common.creating') : t('account.tokens.createButton') }}
           </button>
-          <p v-if="ciTokenCreateError" class="text-sm text-red-400">{{ ciTokenCreateError }}</p>
+          <p v-if="ciTokenCreateError" class="text-sm text-danger">{{ ciTokenCreateError }}</p>
         </div>
       </div>
 
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <p class="text-sm font-semibold text-slate-200">{{ t('account.tokens.existingTitle') }}</p>
-          <p v-if="ciTokensLoading" class="text-xs text-slate-400">{{ t('account.tokens.loading') }}</p>
+          <p class="text-sm font-semibold text-ink">{{ t('account.tokens.existingTitle') }}</p>
+          <p v-if="ciTokensLoading" class="text-xs text-muted">{{ t('account.tokens.loading') }}</p>
         </div>
-        <p v-if="ciTokensError" class="text-sm text-red-400">{{ ciTokensError }}</p>
-        <p v-else-if="ciTokens.length === 0" class="text-sm text-slate-400">{{ t('projectDetail.ciTokensEmpty') }}</p>
+        <p v-if="ciTokensError" class="text-sm text-danger">{{ ciTokensError }}</p>
+        <p v-else-if="ciTokens.length === 0" class="text-sm text-muted">{{ t('projectDetail.ciTokensEmpty') }}</p>
         <div v-else class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-500">
+          <table class="table">
+            <thead>
               <tr>
                 <th class="py-2 pr-4">{{ t('common.name') }}</th>
                 <th class="py-2 pr-4">{{ t('common.created') }}</th>
@@ -359,26 +361,26 @@
                 <th class="py-2 text-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800">
-              <tr v-for="token in ciTokens" :key="token.id" class="text-slate-200">
+            <tbody>
+              <tr v-for="token in ciTokens" :key="token.id">
                 <td class="py-3 pr-4">{{ token.name }}</td>
-                <td class="py-3 pr-4 text-slate-400">{{ formatDate(token.created_at) }}</td>
-                <td class="py-3 pr-4 text-slate-400">
+                <td class="py-3 pr-4 text-muted">{{ formatDate(token.created_at) }}</td>
+                <td class="py-3 pr-4 text-muted">
                   {{ token.last_used_at ? formatDate(token.last_used_at) : t('common.never') }}
                 </td>
-                <td class="py-3 pr-4 text-slate-400">
+                <td class="py-3 pr-4 text-muted">
                   {{ token.expires_at ? formatDate(token.expires_at) : t('common.empty') }}
                 </td>
                 <td class="py-3 pr-4">
                   <span
                     v-if="token.revoked_at"
-                    class="rounded-full bg-rose-500/20 px-2 py-1 text-xs font-semibold text-rose-200"
+                    class="badge badge-danger"
                   >
                     {{ t('common.revoked') }}
                   </span>
                   <span
                     v-else
-                    class="rounded-full bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-200"
+                    class="badge badge-success"
                   >
                     {{ t('common.active') }}
                   </span>
@@ -386,7 +388,7 @@
                 <td class="py-3 text-right">
                   <button
                     v-if="isOwner && !token.revoked_at"
-                    class="text-xs text-red-300 hover:text-red-200"
+                    class="text-xs text-danger hover:text-danger/80"
                     :disabled="revokingTokenId === token.id"
                     @click="handleRevokeCIToken(token)"
                   >
@@ -400,82 +402,82 @@
       </div>
     </section>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+    <section class="panel p-6 space-y-6 ds-reveal">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h3 class="text-xl font-semibold">{{ t('projectDetail.registriesTitle') }}</h3>
-          <p class="text-sm text-slate-400 mt-1">{{ t('projectDetail.registriesSubtitle') }}</p>
+          <p class="text-sm text-muted mt-1">{{ t('projectDetail.registriesSubtitle') }}</p>
         </div>
         <button
           v-if="isOwner"
-          class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+          class="btn btn-primary"
           @click="toggleForm"
         >
           {{ showForm ? t('projectDetail.closeRegistryForm') : t('projectDetail.addRegistry') }}
         </button>
       </div>
 
-      <p v-if="!isOwner && project" class="text-xs text-slate-500">
+      <p v-if="!isOwner && project" class="text-xs text-subtle">
         {{ t('projectDetail.ownerOnlyRegistries') }}
       </p>
 
       <div
         v-if="showForm && isOwner"
-        class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4"
+        class="surface p-5 space-y-4"
       >
-        <h4 class="text-sm font-semibold text-slate-200">{{ t('projectDetail.addRegistryTitle') }}</h4>
+        <h4 class="text-sm font-semibold text-ink">{{ t('projectDetail.addRegistryTitle') }}</h4>
         <form class="grid gap-4 md:grid-cols-2" @submit.prevent="handleCreateRegistry">
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('common.name') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('common.name') }}</label>
             <input
               v-model="form.name"
               type="text"
               :placeholder="t('projectDetail.registryNamePlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
-            <p v-if="fieldErrors.name" class="text-xs text-red-400">{{ fieldErrors.name }}</p>
+            <p v-if="fieldErrors.name" class="text-xs text-danger">{{ fieldErrors.name }}</p>
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.registryUrlLabel') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.registryUrlLabel') }}</label>
             <input
               v-model="form.registry_url"
               type="url"
               :placeholder="t('projectDetail.registryUrlPlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
-            <p v-if="fieldErrors.registry_url" class="text-xs text-red-400">
+            <p v-if="fieldErrors.registry_url" class="text-xs text-danger">
               {{ fieldErrors.registry_url }}
             </p>
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.registryUsernameLabel') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.registryUsernameLabel') }}</label>
             <input
               v-model="form.username"
               type="text"
               :placeholder="t('projectDetail.registryUsernamePlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('projectDetail.registryPasswordLabel') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('projectDetail.registryPasswordLabel') }}</label>
             <input
               v-model="form.password"
               type="password"
               :placeholder="t('projectDetail.registryPasswordPlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
           </div>
           <div class="md:col-span-2 flex items-center gap-3">
             <button
               type="submit"
-              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+              class="btn btn-primary"
               :disabled="creatingRegistry"
             >
               {{ creatingRegistry ? t('common.saving') : t('common.save') }}
             </button>
             <button
               type="button"
-              class="text-sm text-slate-400 hover:text-slate-200"
+              class="btn btn-ghost"
               :disabled="creatingRegistry"
               @click="resetForm"
             >
@@ -483,44 +485,44 @@
             </button>
           </div>
         </form>
-        <p v-if="createRegistryError" class="text-sm text-red-400">{{ createRegistryError }}</p>
+        <p v-if="createRegistryError" class="text-sm text-danger">{{ createRegistryError }}</p>
       </div>
 
       <div>
-        <p v-if="registriesLoading" class="text-sm text-slate-400">{{ t('projectDetail.registriesLoading') }}</p>
-        <p v-else-if="registriesError" class="text-sm text-red-400">{{ registriesError }}</p>
-        <p v-else-if="registries.length === 0" class="text-sm text-slate-400">
+        <p v-if="registriesLoading" class="text-sm text-muted">{{ t('projectDetail.registriesLoading') }}</p>
+        <p v-else-if="registriesError" class="text-sm text-danger">{{ registriesError }}</p>
+        <p v-else-if="registries.length === 0" class="text-sm text-muted">
           {{ t('projectDetail.registriesEmpty') }}
         </p>
         <div v-else class="grid gap-4 md:grid-cols-2">
           <div
             v-for="registry in registries"
             :key="registry.id"
-            class="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3"
+            class="surface p-4 space-y-3 transition hover:border-primary/40"
           >
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-base font-semibold">{{ registry.name }}</p>
-                <p class="text-xs text-slate-500 mt-1">{{ registry.registry_url }}</p>
+                <p class="text-base font-semibold text-ink">{{ registry.name }}</p>
+                <p class="text-xs text-subtle mt-1">{{ registry.registry_url }}</p>
               </div>
-              <span class="rounded-full bg-slate-800/70 px-2 py-1 text-xs text-slate-200">
+              <span class="badge badge-neutral">
                 {{ t('projectDetail.registryGeneric') }}
               </span>
             </div>
-            <p v-if="registry.username" class="text-xs text-slate-400">
+            <p v-if="registry.username" class="text-xs text-muted">
               {{ t('projectDetail.registryUsernamePrefix', { value: registry.username }) }}
             </p>
             <div v-if="isOwner" class="pt-1">
               <div class="flex items-center gap-3">
                 <button
-                  class="text-xs text-indigo-300 hover:text-indigo-200"
+                  class="text-xs text-primary hover:text-primary-strong"
                   type="button"
                   @click="openEditRegistry(registry)"
                 >
                   {{ t('common.edit') }}
                 </button>
                 <button
-                  class="text-xs text-red-300 hover:text-red-200"
+                  class="text-xs text-danger hover:text-danger/80"
                   :disabled="deletingRegistryId === registry.id"
                   @click="handleDeleteRegistry(registry.id)"
                 >
@@ -532,117 +534,106 @@
         </div>
       </div>
 
-      <div
-        v-if="editingRegistry"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
-      >
-        <div class="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <h4 class="text-lg font-semibold text-slate-100">{{ t('projectDetail.editRegistryTitle') }}</h4>
-              <p class="text-xs text-slate-400">{{ t('projectDetail.editRegistrySubtitle') }}</p>
-            </div>
-            <button class="text-slate-400 hover:text-slate-200" type="button" @click="closeEdit">
-              ✕
-            </button>
-          </div>
-          <form class="space-y-4" @submit.prevent="handleUpdateRegistry">
-            <div class="space-y-1">
-              <label class="text-xs text-slate-400">{{ t('common.name') }}</label>
-              <input
-                v-model="editForm.name"
-                type="text"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-              />
-              <p v-if="editErrors.name" class="text-xs text-red-400">{{ editErrors.name }}</p>
-            </div>
-            <div class="space-y-1">
-              <label class="text-xs text-slate-400">{{ t('projectDetail.registryUrlLabel') }}</label>
-              <input
-                v-model="editForm.registry_url"
-                type="url"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-              />
-              <p v-if="editErrors.registry_url" class="text-xs text-red-400">
-                {{ editErrors.registry_url }}
-              </p>
-            </div>
-            <div class="space-y-1">
-              <label class="text-xs text-slate-400">{{ t('projectDetail.registryUsernameLabel') }}</label>
-              <input
-                v-model="editForm.username"
-                type="text"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-                :placeholder="t('projectDetail.registryUsernamePlaceholder')"
-              />
-              <p v-if="editErrors.username" class="text-xs text-red-400">
-                {{ editErrors.username }}
-              </p>
-            </div>
-            <div class="space-y-1">
-              <label class="text-xs text-slate-400">{{ t('projectDetail.editRegistryTokenLabel') }}</label>
-              <input
-                v-model="editForm.token"
-                type="password"
-                class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-                :placeholder="t('projectDetail.registryPasswordPlaceholder')"
-              />
-              <p class="text-xs text-slate-500">{{ t('projectDetail.editRegistryTokenHint') }}</p>
-              <p v-if="editErrors.token" class="text-xs text-red-400">
-                {{ editErrors.token }}
-              </p>
-            </div>
-            <p v-if="editRegistryError" class="text-sm text-red-400">{{ editRegistryError }}</p>
-            <p v-if="editRegistrySuccess" class="text-sm text-emerald-400">
-              {{ editRegistrySuccess }}
-            </p>
-            <div class="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                class="text-sm text-slate-400 hover:text-slate-200"
-                :disabled="savingRegistry"
-                @click="closeEdit"
-              >
-                {{ t('common.cancel') }}
+      <Transition name="modal-fade">
+        <div
+          v-if="editingRegistry"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-base/80 backdrop-blur-sm px-4"
+        >
+          <Transition name="modal-panel">
+            <div class="panel w-full max-w-lg p-6 space-y-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h4 class="text-lg font-semibold text-ink">{{ t('projectDetail.editRegistryTitle') }}</h4>
+                  <p class="text-xs text-muted">{{ t('projectDetail.editRegistrySubtitle') }}</p>
+                </div>
+              <button class="btn btn-ghost btn-icon" type="button" @click="closeEdit" aria-label="Close">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path :d="closeIcon" />
+                </svg>
               </button>
-              <button
-                type="submit"
-                class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
-                :disabled="savingRegistry"
-              >
-                {{ savingRegistry ? t('common.saving') : t('common.saveChanges') }}
-              </button>
+              </div>
+              <form class="space-y-4" @submit.prevent="handleUpdateRegistry">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-subtle">{{ t('common.name') }}</label>
+                  <input v-model="editForm.name" type="text" class="input" />
+                  <p v-if="editErrors.name" class="text-xs text-danger">{{ editErrors.name }}</p>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-subtle">{{ t('projectDetail.registryUrlLabel') }}</label>
+                  <input v-model="editForm.registry_url" type="url" class="input" />
+                  <p v-if="editErrors.registry_url" class="text-xs text-danger">
+                    {{ editErrors.registry_url }}
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-subtle">{{ t('projectDetail.registryUsernameLabel') }}</label>
+                  <input
+                    v-model="editForm.username"
+                    type="text"
+                    class="input"
+                    :placeholder="t('projectDetail.registryUsernamePlaceholder')"
+                  />
+                  <p v-if="editErrors.username" class="text-xs text-danger">
+                    {{ editErrors.username }}
+                  </p>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-subtle">{{ t('projectDetail.editRegistryTokenLabel') }}</label>
+                  <input
+                    v-model="editForm.token"
+                    type="password"
+                    class="input"
+                    :placeholder="t('projectDetail.registryPasswordPlaceholder')"
+                  />
+                  <p class="text-xs text-subtle">{{ t('projectDetail.editRegistryTokenHint') }}</p>
+                  <p v-if="editErrors.token" class="text-xs text-danger">
+                    {{ editErrors.token }}
+                  </p>
+                </div>
+                <p v-if="editRegistryError" class="text-sm text-danger">{{ editRegistryError }}</p>
+                <p v-if="editRegistrySuccess" class="text-sm text-success">
+                  {{ editRegistrySuccess }}
+                </p>
+                <div class="flex items-center justify-end gap-3">
+                  <button type="button" class="btn btn-ghost" :disabled="savingRegistry" @click="closeEdit">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="submit" class="btn btn-primary" :disabled="savingRegistry">
+                    {{ savingRegistry ? t('common.saving') : t('common.saveChanges') }}
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+          </Transition>
         </div>
-      </div>
+      </Transition>
     </section>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
+    <section class="panel p-6 space-y-6 ds-reveal">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div class="flex items-center gap-3">
             <h3 class="text-xl font-semibold">{{ t('projectDetail.analysesTitle') }}</h3>
-            <span v-if="polling" class="text-xs text-slate-400">{{ t('analysisDetail.updating') }}</span>
+            <span v-if="polling" class="text-xs text-subtle">{{ t('analysisDetail.updating') }}</span>
           </div>
-          <p class="text-sm text-slate-400 mt-1">{{ t('projectDetail.analysesSubtitle') }}</p>
+          <p class="text-sm text-muted mt-1">{{ t('projectDetail.analysesSubtitle') }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <RouterLink
-            class="inline-flex items-center justify-center rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
+            class="btn btn-secondary px-3 py-1.5 text-xs"
             :to="`/projects/${project?.id}/history`"
           >
-            History
+            {{ t('projectDetail.history') }}
           </RouterLink>
           <RouterLink
-            class="inline-flex items-center justify-center rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
+            class="btn btn-secondary px-3 py-1.5 text-xs"
             :to="`/projects/${project?.id}/trends`"
           >
-            Trends
+            {{ t('projectDetail.trends') }}
           </RouterLink>
           <button
             v-if="isOwner"
-            class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+            class="btn btn-primary"
             :disabled="registries.length === 0"
             @click="toggleAnalysisForm"
           >
@@ -651,66 +642,65 @@
         </div>
       </div>
 
-      <p v-if="!isOwner && project" class="text-xs text-slate-500">
+      <p v-if="!isOwner && project" class="text-xs text-subtle">
         {{ t('projectDetail.ownerOnlyAnalyses') }}
       </p>
-      <p v-if="isOwner && registries.length === 0" class="text-xs text-slate-500">
+      <p v-if="isOwner && registries.length === 0" class="text-xs text-subtle">
         {{ t('projectDetail.analysisRequiresRegistry') }}
       </p>
 
       <div
         v-if="showAnalysisForm && isOwner"
-        class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 space-y-4"
+        class="surface p-5 space-y-4"
       >
-        <h4 class="text-sm font-semibold text-slate-200">{{ t('projectDetail.requestAnalysisTitle') }}</h4>
+        <h4 class="text-sm font-semibold text-ink">{{ t('projectDetail.requestAnalysisTitle') }}</h4>
         <form class="grid gap-4 md:grid-cols-2" @submit.prevent="handleCreateAnalysis">
           <div class="space-y-1 md:col-span-2">
-            <label class="text-xs text-slate-400">{{ t('common.registry') }}</label>
-            <select
+            <label class="text-xs font-medium text-subtle">{{ t('common.registry') }}</label>
+            <BaseSelect
               v-model="analysisForm.registry_id"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-            >
-              <option disabled value="">{{ t('projectDetail.selectRegistry') }}</option>
-              <option v-for="registry in registries" :key="registry.id" :value="registry.id">
-                {{ registry.name }} · {{ registry.registry_url }}
-              </option>
-            </select>
-            <p v-if="analysisErrors.registry_id" class="text-xs text-red-400">
+              :options="registryOptions"
+              :placeholder="t('projectDetail.selectRegistry')"
+              searchable
+              :search-placeholder="t('common.search')"
+              :empty-label="t('common.noResults')"
+            />
+            <p v-if="analysisErrors.registry_id" class="text-xs text-danger">
               {{ analysisErrors.registry_id }}
             </p>
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('common.image') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('common.image') }}</label>
             <input
               v-model="analysisForm.image"
               type="text"
               :placeholder="t('projectDetail.imagePlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
-            <p v-if="analysisErrors.image" class="text-xs text-red-400">
+            <p v-if="analysisErrors.image" class="text-xs text-danger">
               {{ analysisErrors.image }}
             </p>
           </div>
           <div class="space-y-1">
-            <label class="text-xs text-slate-400">{{ t('common.tag') }}</label>
+            <label class="text-xs font-medium text-subtle">{{ t('common.tag') }}</label>
             <input
               v-model="analysisForm.tag"
               type="text"
               :placeholder="t('projectDetail.tagPlaceholder')"
-              class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              class="input"
             />
           </div>
           <div class="md:col-span-2 flex items-center gap-3">
             <button
               type="submit"
-              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
+              class="btn btn-primary"
               :disabled="creatingAnalysis"
             >
               {{ creatingAnalysis ? t('common.submitting') : t('projectDetail.startAnalysis') }}
             </button>
             <button
               type="button"
-              class="text-sm text-slate-400 hover:text-slate-200"
+              class="btn btn-ghost"
               :disabled="creatingAnalysis"
               @click="resetAnalysisForm"
             >
@@ -718,18 +708,18 @@
             </button>
           </div>
         </form>
-        <p v-if="createAnalysisError" class="text-sm text-red-400">{{ createAnalysisError }}</p>
+        <p v-if="createAnalysisError" class="text-sm text-danger">{{ createAnalysisError }}</p>
       </div>
 
       <div>
-        <p v-if="analysesLoading" class="text-sm text-slate-400">{{ t('projectDetail.analysesLoading') }}</p>
-        <p v-else-if="analysesError" class="text-sm text-red-400">{{ analysesError }}</p>
-        <p v-else-if="analyses.length === 0" class="text-sm text-slate-400">
+        <p v-if="analysesLoading" class="text-sm text-muted">{{ t('projectDetail.analysesLoading') }}</p>
+        <p v-else-if="analysesError" class="text-sm text-danger">{{ analysesError }}</p>
+        <p v-else-if="analyses.length === 0" class="text-sm text-muted">
           {{ t('projectDetail.analysisEmpty') }}
         </p>
         <div v-else class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-500">
+          <table class="table">
+            <thead>
               <tr>
                 <th class="py-2 pr-4">{{ t('common.image') }}</th>
                 <th class="py-2 pr-4">{{ t('common.status') }}</th>
@@ -738,11 +728,11 @@
                 <th class="py-2 text-right">{{ t('common.actions') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800">
-              <tr v-for="analysis in analyses" :key="analysis.id" class="text-slate-200">
+            <tbody>
+              <tr v-for="analysis in analyses" :key="analysis.id">
                 <td class="py-3 pr-4">
                   <RouterLink
-                    class="text-indigo-400 hover:text-indigo-300"
+                    class="link"
                     :to="`/projects/${project?.id}/analyses/${analysis.id}`"
                   >
                     {{ analysis.image }}:{{ analysis.tag }}
@@ -750,30 +740,30 @@
                 </td>
                 <td class="py-3 pr-4">
                   <span
-                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                    class="badge"
                     :class="statusBadgeClass(analysis.status)"
                   >
                     {{ statusLabel(analysis.status) }}
                   </span>
                 </td>
-                <td class="py-3 pr-4 text-slate-400">
+                <td class="py-3 pr-4 text-muted">
                   {{ formatDate(analysis.created_at) }}
                 </td>
-                <td class="py-3 text-slate-400">
+                <td class="py-3 text-muted">
                   {{ analysis.total_size_bytes ? formatBytes(analysis.total_size_bytes) : t('common.empty') }}
                 </td>
                 <td class="py-3 text-right">
                   <div class="flex items-center justify-end gap-3">
                     <RouterLink
                       v-if="getPreviousCompletedAnalysis(analysis)"
-                      class="text-xs text-indigo-400 hover:text-indigo-300"
+                      class="text-xs text-primary hover:text-primary-strong"
                       :to="`/projects/${project?.id}/analyses/compare?from=${getPreviousCompletedAnalysis(analysis)?.id}&to=${analysis.id}`"
                     >
                       {{ t('projectDetail.analysisCompare') }}
                     </RouterLink>
                     <button
                       v-if="isOwner"
-                      class="text-xs text-red-300 hover:text-red-200 disabled:opacity-60"
+                      class="text-xs text-danger hover:text-danger/80 disabled:opacity-60"
                       :disabled="deletingAnalysisId === analysis.id"
                       @click="handleDeleteAnalysis(analysis)"
                     >
@@ -788,41 +778,72 @@
       </div>
     </section>
 
-    <div
-      v-if="showTokenModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
-    >
-      <div class="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 p-6 space-y-4">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h4 class="text-lg font-semibold text-slate-100">{{ t('projectDetail.newTokenTitle') }}</h4>
-            <p class="text-xs text-amber-300">{{ t('projectDetail.newTokenSubtitle') }}</p>
-          </div>
-          <button class="text-slate-400 hover:text-slate-200" type="button" @click="showTokenModal = false">
-            ✕
-          </button>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-4 space-y-3">
-          <p class="text-sm text-slate-300 break-all font-mono">{{ createdTokenValue }}</p>
-          <div class="flex items-center gap-3">
-            <button
-              type="button"
-              class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
-              @click="copyToken"
-            >
-              {{ t('projectDetail.copyToken') }}
+    <Transition name="modal-fade">
+      <div
+        v-if="showTokenModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-base/80 backdrop-blur-sm px-4"
+      >
+        <Transition name="modal-panel">
+          <div class="panel w-full max-w-xl p-6 space-y-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h4 class="text-lg font-semibold text-ink">{{ t('projectDetail.newTokenTitle') }}</h4>
+                <p class="text-xs text-warning">{{ t('projectDetail.newTokenSubtitle') }}</p>
+              </div>
+            <button class="btn btn-ghost btn-icon" type="button" @click="showTokenModal = false" aria-label="Close">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path :d="closeIcon" />
+              </svg>
             </button>
-            <button
-              type="button"
-              class="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
-              @click="showTokenModal = false"
-            >
-              {{ t('projectDetail.tokenCopiedClose') }}
-            </button>
+            </div>
+            <div class="surface p-4 space-y-3">
+              <p class="text-sm text-ink break-all font-mono">{{ createdTokenValue }}</p>
+              <div class="flex items-center gap-3">
+                <button type="button" class="btn btn-primary" @click="copyToken">
+                  {{ t('projectDetail.copyToken') }}
+                </button>
+                <button type="button" class="btn btn-secondary" @click="showTokenModal = false">
+                  {{ t('projectDetail.tokenCopiedClose') }}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        </Transition>
       </div>
-    </div>
+    </Transition>
+
+    <BaseConfirmModal
+      v-model="confirmRevokeOpen"
+      :title="t('projectDetail.revokeTokenConfirm', { name: pendingRevokeToken?.name || '' })"
+      :confirm-label="t('account.tokens.revoke')"
+      :cancel-label="t('common.cancel')"
+      tone="danger"
+      @confirm="confirmRevokeToken"
+    />
+    <BaseConfirmModal
+      v-model="confirmOverrideDeleteOpen"
+      :title="t('projectDetail.overrideDeleteConfirm')"
+      :confirm-label="t('common.delete')"
+      :cancel-label="t('common.cancel')"
+      tone="danger"
+      @confirm="confirmDeleteOverride"
+    />
+    <BaseConfirmModal
+      v-model="confirmAnalysisDeleteOpen"
+      :title="t('projectDetail.analysisDeleteConfirm')"
+      :confirm-label="t('common.delete')"
+      :cancel-label="t('common.cancel')"
+      tone="danger"
+      @confirm="confirmDeleteAnalysis"
+    />
+    <BaseConfirmModal
+      v-model="confirmProjectDeleteOpen"
+      :title="t('projectDetail.deleteConfirm')"
+      :confirm-label="t('projectDetail.deleteProject')"
+      :cancel-label="t('common.cancel')"
+      tone="danger"
+      @confirm="confirmDeleteProject"
+    />
   </div>
 </template>
 
@@ -850,6 +871,10 @@ import {
   updateBudgetOverride,
   deleteBudgetOverride,
 } from '../api/client'
+import BaseConfirmModal from '../components/BaseConfirmModal.vue'
+import BaseSelect from '../components/BaseSelect.vue'
+import BaseDatePicker from '../components/BaseDatePicker.vue'
+import { mdiClose } from '@mdi/js'
 
 const route = useRoute()
 const router = useRouter()
@@ -874,6 +899,14 @@ const showOverrideModal = ref(false)
 const editingOverride = ref(null)
 const overrideSaving = ref(false)
 const overrideError = ref('')
+const confirmRevokeOpen = ref(false)
+const confirmOverrideDeleteOpen = ref(false)
+const confirmAnalysisDeleteOpen = ref(false)
+const confirmProjectDeleteOpen = ref(false)
+const pendingRevokeToken = ref(null)
+const pendingOverrideId = ref(null)
+const pendingAnalysis = ref(null)
+const closeIcon = mdiClose
 const ciTokens = ref([])
 const ciTokensLoading = ref(false)
 const ciTokensError = ref('')
@@ -922,6 +955,13 @@ const analysisForm = ref({
   image: '',
   tag: 'latest',
 })
+
+const registryOptions = computed(() =>
+  registries.value.map((registry) => ({
+    value: registry.id,
+    label: `${registry.name} · ${registry.registry_url}`,
+  })),
+)
 
 const isOwner = computed(() => project.value?.role === 'owner')
 const hasActiveAnalyses = computed(() =>
@@ -1274,16 +1314,21 @@ const handleCreateCIToken = async () => {
 
 const handleRevokeCIToken = async (token) => {
   if (!isOwner.value || token.revoked_at) return
-  const confirmed = window.confirm(t('projectDetail.revokeTokenConfirm', { name: token.name }))
-  if (!confirmed) return
-  revokingTokenId.value = token.id
+  pendingRevokeToken.value = token
+  confirmRevokeOpen.value = true
+}
+
+const confirmRevokeToken = async () => {
+  if (!pendingRevokeToken.value) return
+  revokingTokenId.value = pendingRevokeToken.value.id
   try {
-    await revokeCIToken(route.params.id, token.id)
+    await revokeCIToken(route.params.id, pendingRevokeToken.value.id)
     await fetchCITokens()
   } catch (err) {
     ciTokensError.value = err.message
   } finally {
     revokingTokenId.value = null
+    pendingRevokeToken.value = null
   }
 }
 
@@ -1346,13 +1391,19 @@ const handleSaveOverride = async () => {
 
 const handleDeleteOverride = async (budgetId) => {
   if (!isOwner.value) return
-  const confirmed = window.confirm(t('projectDetail.overrideDeleteConfirm'))
-  if (!confirmed) return
+  pendingOverrideId.value = budgetId
+  confirmOverrideDeleteOpen.value = true
+}
+
+const confirmDeleteOverride = async () => {
+  if (!pendingOverrideId.value) return
   try {
-    await deleteBudgetOverride(route.params.id, budgetId)
-    budgetOverrides.value = budgetOverrides.value.filter((b) => b.id !== budgetId)
+    await deleteBudgetOverride(route.params.id, pendingOverrideId.value)
+    budgetOverrides.value = budgetOverrides.value.filter((b) => b.id !== pendingOverrideId.value)
   } catch (err) {
     budgetsError.value = err.message
+  } finally {
+    pendingOverrideId.value = null
   }
 }
 
@@ -1404,19 +1455,21 @@ const handleDeleteAnalysis = async (analysis) => {
   if (!analysis?.id) {
     return
   }
-  const confirmed = window.confirm(t('projectDetail.analysisDeleteConfirm'))
-  if (!confirmed) {
-    return
-  }
+  pendingAnalysis.value = analysis
+  confirmAnalysisDeleteOpen.value = true
+}
 
-  deletingAnalysisId.value = analysis.id
+const confirmDeleteAnalysis = async () => {
+  if (!pendingAnalysis.value) return
+  deletingAnalysisId.value = pendingAnalysis.value.id
   try {
-    await deleteAnalysis(route.params.id, analysis.id)
+    await deleteAnalysis(route.params.id, pendingAnalysis.value.id)
     await fetchAnalyses()
   } catch (err) {
     analysesError.value = err.message
   } finally {
     deletingAnalysisId.value = null
+    pendingAnalysis.value = null
   }
 }
 
@@ -1447,15 +1500,15 @@ const bytesToMB = (value) => {
 const statusBadgeClass = (status) => {
   switch (status) {
     case 'completed':
-      return 'bg-emerald-500/20 text-emerald-200'
+      return 'badge-success'
     case 'running':
-      return 'bg-sky-500/20 text-sky-200'
+      return 'badge-info'
     case 'queued':
-      return 'bg-slate-700/40 text-slate-200'
+      return 'badge-neutral'
     case 'failed':
-      return 'bg-rose-500/20 text-rose-200'
+      return 'badge-danger'
     default:
-      return 'bg-amber-500/20 text-amber-200'
+      return 'badge-warning'
   }
 }
 
@@ -1597,12 +1650,12 @@ const handleDelete = async () => {
   if (!project.value) {
     return
   }
-  deleteError.value = ''
-  const confirmed = window.confirm(t('projectDetail.deleteConfirm'))
-  if (!confirmed) {
-    return
-  }
+  confirmProjectDeleteOpen.value = true
+}
 
+const confirmDeleteProject = async () => {
+  if (!project.value) return
+  deleteError.value = ''
   deleting.value = true
   try {
     await deleteProject(project.value.id)

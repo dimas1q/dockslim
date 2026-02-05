@@ -1,12 +1,12 @@
 # DockSlim
 
-DockSlim is a tool for inspecting Docker image contents and understanding where space is used. The project aims to surface layer and directory size insights to help teams trim their container images.
+DockSlim - tool for inspecting Docker images contents and understanding where space is used. It surfaces layer and size insights so teams can prevent image growth regressions.
 
 ## Project Structure
 
 - `backend/` – Go HTTP API (chi router).
 - `analyzer/` – Go worker for image analysis jobs.
-- `frontend/` – Vue 3 + Vite + Tailwind placeholder UI.
+- `frontend/` – Vue 3 + Vite + Tailwind production UI (themes, modals, custom selects/datepicker).
 - `deploy/` – Docker Compose development stack.
 
 ## Prerequisites
@@ -28,7 +28,7 @@ cp analyzer/.env.example analyzer/.env
 Environment variables:
 
 - Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`), `COOKIE_SECURE` (default: false), `COOKIE_SAMESITE` (`lax`, `strict`, or `none`, default: `lax`, requires `COOKIE_SECURE=true` when set to `none`), `COOKIE_DOMAIN` (optional), `COOKIE_PATH` (default: `/`)
-- Analyzer: `ANALYZER_POSTGRES_DSN`, `ANALYZER_REDIS_ADDR`
+- Analyzer: `ANALYZER_POSTGRES_DSN`
 - Frontend: `VITE_API_BASE_URL` (optional override for API base URL), `VITE_API_PROXY_TARGET` (Vite dev proxy target, default: `http://localhost:8080`)
 
 ## Running Locally
@@ -45,6 +45,16 @@ AUTO_MIGRATE=true \
 MIGRATIONS_PATH=migrations \
 go run ./cmd/api
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` in the browser.
 
 Health check:
 

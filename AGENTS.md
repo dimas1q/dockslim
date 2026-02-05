@@ -174,6 +174,11 @@ When implementing features:
   * critical recommendations
   * regressions
 * Ensure the UI supports **multiple languages (Russian + English)** with structured locale files, and default to Russian.
+* **Use the current DockSlim design system** (tokens, card/panel styles, buttons, badges, shadows).
+* **Frontend inputs must use custom controls**:
+  * `BaseSelect` instead of native `<select>`
+  * `BaseDatePicker` instead of native date inputs
+  * Custom modals instead of `window.confirm`
 
 DockSlim is a **product**, not a debugging tool.
 

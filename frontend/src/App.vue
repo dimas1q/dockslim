@@ -1,37 +1,77 @@
 <template>
-  <div class="min-h-screen bg-slate-950 text-slate-100">
-    <div class="max-w-4xl mx-auto px-6 py-10">
-      <header class="flex items-center justify-between mb-10">
-        <div>
-          <p class="text-xs uppercase tracking-widest text-slate-400">{{ t('app.brand') }}</p>
-          <h1 class="text-2xl font-semibold">{{ t('app.tagline') }}</h1>
+  <div class="app-shell">
+    <div class="page">
+      <header class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div class="flex items-center gap-4">
+          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path :d="logoIcon" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-[0.35em] text-subtle">{{ t('app.brand') }}</p>
+            <h1 class="text-2xl font-semibold text-ink">{{ t('app.tagline') }}</h1>
+          </div>
         </div>
-        <div v-if="auth.user" class="flex items-center gap-3">
-          <RouterLink
-            to="/account/settings"
-            class="rounded-lg border border-slate-800 px-3 py-1.5 text-sm text-indigo-200 hover:border-indigo-400/80"
-          >
-            {{ t('app.accountFallback') }}
-          </RouterLink>
-          <button class="text-sm text-slate-300 hover:text-white" @click="handleLogout">
-            {{ t('app.logout') }}
-          </button>
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="theme-switch" role="group" aria-label="Theme">
+            <span class="theme-switch__indicator" :class="theme === 'dark' ? 'is-dark' : ''"></span>
+            <button
+              type="button"
+              :data-active="theme === 'light'"
+              :aria-pressed="theme === 'light'"
+              @click="applyTheme('light')"
+            >
+              {{ t('theme.light') }}
+            </button>
+            <button
+              type="button"
+              :data-active="theme === 'dark'"
+              :aria-pressed="theme === 'dark'"
+              @click="applyTheme('dark')"
+            >
+              {{ t('theme.dark') }}
+            </button>
+          </div>
+          <div v-if="auth.user" class="flex items-center gap-2">
+            <RouterLink
+              to="/account/settings"
+              class="header-pill"
+              :class="isSettingsActive ? 'header-pill-active' : ''"
+            >
+              {{ t('app.accountFallback') }}
+            </RouterLink>
+            <button class="header-pill" @click="handleLogout">
+              {{ t('app.logout') }}
+            </button>
+          </div>
         </div>
       </header>
-      <RouterView />
+
+      <main class="mt-10">
+        <Transition name="route-fade" mode="out-in">
+          <RouterView />
+        </Transition>
+      </main>
     </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import { loadCurrentUser, logout, useAuth } from './stores/auth'
+import { applyTheme, theme } from './stores/theme'
+import { mdiDocker } from '@mdi/js'
 
 const auth = useAuth()
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
+const isSettingsActive = computed(() => route.path.startsWith('/account/settings'))
+const logoIcon = mdiDocker
 
 const handleLogout = async () => {
   await logout()

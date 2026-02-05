@@ -1,146 +1,111 @@
 <template>
-  <div class="space-y-6">
-    <RouterLink class="text-sm text-indigo-400 hover:text-indigo-300" :to="`/projects/${projectId}`">
-      ← Back to project
+  <div class="space-y-10">
+    <RouterLink class="link-subtle text-sm" :to="`/projects/${projectId}`">
+      {{ t('nav.backToProject') }}
     </RouterLink>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+    <section class="panel p-6 space-y-4 ds-reveal">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 class="text-2xl font-semibold">History</h2>
-          <p class="text-sm text-slate-400 mt-1">
-            Browse completed analyses over time with quick filters.
+          <h2 class="text-2xl font-semibold text-ink">{{ t('projectHistory.title') }}</h2>
+          <p class="text-sm text-muted mt-1">
+            {{ t('projectHistory.subtitle') }}
           </p>
         </div>
-        <button
-          class="text-sm text-slate-300 hover:text-white"
-          :disabled="loading"
-          @click="fetchHistoryData"
-        >
-          Refresh
+        <button class="btn btn-ghost text-sm" :disabled="loading" @click="fetchHistoryData">
+          {{ t('common.refresh') }}
         </button>
       </div>
 
       <form class="grid gap-4 md:grid-cols-6" @submit.prevent="applyFilters">
         <div class="space-y-1 md:col-span-2">
-          <label class="text-xs text-slate-400">Image</label>
-          <input
-            v-model="filters.image"
-            type="text"
-            placeholder="repo/name"
-            class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          />
+          <label class="text-xs font-medium text-subtle">{{ t('projectHistory.filters.image') }}</label>
+          <input v-model="filters.image" type="text" placeholder="repo/name" class="input" />
         </div>
         <div class="space-y-1">
-          <label class="text-xs text-slate-400">Branch</label>
-          <input
-            v-model="filters.git_ref"
-            type="text"
-            placeholder="main"
-            class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          />
+          <label class="text-xs font-medium text-subtle">{{ t('projectHistory.filters.branch') }}</label>
+          <input v-model="filters.git_ref" type="text" placeholder="main" class="input" />
         </div>
         <div class="space-y-1">
-          <label class="text-xs text-slate-400">From</label>
-          <input
+          <label class="text-xs font-medium text-subtle">{{ t('projectHistory.filters.from') }}</label>
+          <BaseDatePicker
             v-model="filters.from"
-            type="date"
-            class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            :locale="locale"
+            :placeholder="t('common.datePlaceholder')"
+            :clear-label="t('common.clear')"
+            :close-label="t('common.close')"
           />
         </div>
         <div class="space-y-1">
-          <label class="text-xs text-slate-400">To</label>
-          <input
+          <label class="text-xs font-medium text-subtle">{{ t('projectHistory.filters.to') }}</label>
+          <BaseDatePicker
             v-model="filters.to"
-            type="date"
-            class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+            :locale="locale"
+            :placeholder="t('common.datePlaceholder')"
+            :clear-label="t('common.clear')"
+            :close-label="t('common.close')"
           />
         </div>
         <div class="space-y-1">
-          <label class="text-xs text-slate-400">Status</label>
-          <select
-            v-model="filters.status"
-            class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          >
-            <option value="all">All</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="running">Running</option>
-            <option value="queued">Queued</option>
-          </select>
+          <label class="text-xs font-medium text-subtle">{{ t('projectHistory.filters.status') }}</label>
+          <BaseSelect v-model="filters.status" :options="statusOptions" />
         </div>
         <div class="space-y-1">
-          <label class="text-xs text-slate-400">Limit</label>
-          <select
-            v-model="filters.limit"
-            class="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          >
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="200">200</option>
-            <option value="500">500</option>
-          </select>
+          <label class="text-xs font-medium text-subtle">{{ t('projectHistory.filters.limit') }}</label>
+          <BaseSelect v-model="filters.limit" :options="limitOptions" />
         </div>
         <div class="md:col-span-6 flex items-center gap-3">
-          <button
-            type="submit"
-            class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-60"
-            :disabled="loading"
-          >
-            {{ loading ? 'Loading...' : 'Apply filters' }}
+          <button type="submit" class="btn btn-primary" :disabled="loading">
+            {{ loading ? t('projectHistory.filters.applyLoading') : t('projectHistory.filters.apply') }}
           </button>
-          <button
-            type="button"
-            class="text-sm text-slate-400 hover:text-slate-200"
-            :disabled="loading"
-            @click="clearFilters"
-          >
-            Clear
+          <button type="button" class="btn btn-ghost" :disabled="loading" @click="clearFilters">
+            {{ t('common.clear') }}
           </button>
-          <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
+          <p v-if="error" class="text-sm text-danger">{{ error }}</p>
         </div>
       </form>
     </section>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-      <p v-if="loading" class="text-sm text-slate-400">Loading history...</p>
-      <p v-else-if="error" class="text-sm text-rose-400">{{ error }}</p>
-      <p v-else-if="history.length === 0" class="text-sm text-slate-400">
-        No analyses match these filters.
+    <section class="panel p-6 ds-reveal">
+      <div v-if="loading" class="space-y-3">
+        <div class="h-12 rounded-xl skeleton"></div>
+        <div class="h-12 rounded-xl skeleton"></div>
+        <div class="h-12 rounded-xl skeleton"></div>
+      </div>
+      <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>
+      <p v-else-if="history.length === 0" class="text-sm text-muted">
+        {{ t('projectHistory.empty') }}
       </p>
       <div v-else class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
-          <thead class="text-xs uppercase text-slate-500">
+        <table class="table">
+          <thead>
             <tr>
-              <th class="py-2 pr-4">Time</th>
-              <th class="py-2 pr-4">Image</th>
-              <th class="py-2 pr-4">Branch</th>
-              <th class="py-2 pr-4">Commit</th>
-              <th class="py-2 pr-4">Size</th>
-              <th class="py-2 pr-4">Layers</th>
-              <th class="py-2">Status</th>
+              <th class="py-2 pr-4">{{ t('projectHistory.table.time') }}</th>
+              <th class="py-2 pr-4">{{ t('projectHistory.filters.image') }}</th>
+              <th class="py-2 pr-4">{{ t('projectHistory.table.branch') }}</th>
+              <th class="py-2 pr-4">{{ t('projectHistory.table.commit') }}</th>
+              <th class="py-2 pr-4">{{ t('projectHistory.table.size') }}</th>
+              <th class="py-2 pr-4">{{ t('projectHistory.table.layers') }}</th>
+              <th class="py-2">{{ t('common.status') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800">
-            <tr v-for="item in history" :key="item.id" class="text-slate-200">
-              <td class="py-3 pr-4 text-slate-400">{{ formatDate(item.analyzed_at) }}</td>
+          <tbody>
+            <tr v-for="item in history" :key="item.id">
+              <td class="py-3 pr-4 text-muted">{{ formatDate(item.analyzed_at) }}</td>
               <td class="py-3 pr-4">
-                <RouterLink
-                  class="text-indigo-400 hover:text-indigo-300"
-                  :to="`/projects/${projectId}/analyses/${item.id}`"
-                >
+                <RouterLink class="link" :to="`/projects/${projectId}/analyses/${item.id}`">
                   {{ item.image }}
                 </RouterLink>
               </td>
-              <td class="py-3 pr-4 text-slate-300">{{ item.git_ref || '-' }}</td>
-              <td class="py-3 pr-4 font-mono text-xs text-slate-300">{{ shortCommit(item.commit_sha) }}</td>
-              <td class="py-3 pr-4 text-slate-300">
-                {{ item.total_size_bytes ? formatBytes(item.total_size_bytes) : '-' }}
+              <td class="py-3 pr-4 text-muted">{{ item.git_ref || t('common.empty') }}</td>
+              <td class="py-3 pr-4 font-mono text-xs text-muted">{{ shortCommit(item.commit_sha) }}</td>
+              <td class="py-3 pr-4 text-muted">
+                {{ item.total_size_bytes ? formatBytes(item.total_size_bytes) : t('common.empty') }}
               </td>
-              <td class="py-3 pr-4 text-slate-300">{{ item.layer_count ?? '-' }}</td>
+              <td class="py-3 pr-4 text-muted">{{ item.layer_count ?? t('common.empty') }}</td>
               <td class="py-3">
-                <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="statusBadgeClass(item.status)">
-                  {{ item.status }}
+                <span class="badge" :class="statusBadgeClass(item.status)">
+                  {{ statusLabel(item.status) }}
                 </span>
               </td>
             </tr>
@@ -152,12 +117,16 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { fetchHistory } from '../api/client'
+import BaseSelect from '../components/BaseSelect.vue'
+import BaseDatePicker from '../components/BaseDatePicker.vue'
 
 const route = useRoute()
 const projectId = route.params.id
+const { locale, t, tm } = useI18n()
 
 const history = ref([])
 const loading = ref(false)
@@ -170,6 +139,21 @@ const filters = ref({
   status: 'all',
   limit: '100',
 })
+
+const statusOptions = computed(() => [
+  { value: 'all', label: t('projectHistory.statusAll') },
+  { value: 'completed', label: t('status.completed') },
+  { value: 'failed', label: t('status.failed') },
+  { value: 'running', label: t('status.running') },
+  { value: 'queued', label: t('status.queued') },
+])
+
+const limitOptions = computed(() => [
+  { value: '50', label: '50' },
+  { value: '100', label: '100' },
+  { value: '200', label: '200' },
+  { value: '500', label: '500' },
+])
 
 const buildParams = () => {
   const params = {}
@@ -204,40 +188,48 @@ const clearFilters = () => {
 }
 
 const formatDate = (value) => {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  if (!value) return t('common.empty')
+  return new Date(value).toLocaleString(locale.value)
 }
 
 const formatBytes = (value) => {
-  if (!value && value !== 0) return '-'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  if (!value && value !== 0) return t('common.empty')
+  const units = tm('units.bytes')
+  const unitList = Array.isArray(units) && units.length ? units : ['B', 'KB', 'MB', 'GB', 'TB']
   let size = Number(value)
   let unitIndex = 0
-  while (size >= 1024 && unitIndex < units.length - 1) {
+  while (size >= 1024 && unitIndex < unitList.length - 1) {
     size /= 1024
     unitIndex += 1
   }
-  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${unitList[unitIndex]}`
 }
 
 const shortCommit = (value) => {
-  if (!value) return '-'
+  if (!value) return t('common.empty')
   return value.slice(0, 8)
 }
 
 const statusBadgeClass = (status) => {
   switch (status) {
     case 'completed':
-      return 'bg-emerald-500/20 text-emerald-200'
+      return 'badge-success'
     case 'failed':
-      return 'bg-rose-500/20 text-rose-200'
+      return 'badge-danger'
     case 'running':
-      return 'bg-amber-500/20 text-amber-200'
+      return 'badge-warning'
     case 'queued':
-      return 'bg-slate-700/40 text-slate-200'
+      return 'badge-neutral'
     default:
-      return 'bg-slate-700/40 text-slate-200'
+      return 'badge-neutral'
   }
+}
+
+const statusLabel = (status) => {
+  if (!status) {
+    return t('common.empty')
+  }
+  return t(`status.${status}`)
 }
 
 onMounted(fetchHistoryData)

@@ -1,123 +1,117 @@
 <template>
-  <div class="space-y-6">
-    <RouterLink class="text-sm text-indigo-400 hover:text-indigo-300" :to="`/projects/${projectId}`">
+  <div class="space-y-10">
+    <RouterLink class="link-subtle text-sm" :to="`/projects/${projectId}`">
       {{ t('nav.backToProject') }}
     </RouterLink>
 
-    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-6">
-      <div v-if="loading" class="space-y-4 animate-pulse">
-        <div class="h-6 w-48 rounded bg-slate-800/80"></div>
-        <div class="h-4 w-72 rounded bg-slate-800/60"></div>
+    <section class="panel p-6 space-y-6 ds-reveal">
+      <div v-if="loading" class="space-y-4">
+        <div class="h-6 w-48 rounded skeleton"></div>
+        <div class="h-4 w-72 rounded skeleton"></div>
         <div class="grid gap-4 md:grid-cols-3">
-          <div class="h-20 rounded-xl bg-slate-800/70"></div>
-          <div class="h-20 rounded-xl bg-slate-800/70"></div>
-          <div class="h-20 rounded-xl bg-slate-800/70"></div>
+          <div class="h-20 rounded-xl skeleton"></div>
+          <div class="h-20 rounded-xl skeleton"></div>
+          <div class="h-20 rounded-xl skeleton"></div>
         </div>
       </div>
-      <p v-else-if="error" class="text-sm text-red-400">{{ error }}</p>
+      <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>
       <div v-else>
         <div class="space-y-2">
-          <h2 class="text-2xl font-semibold">{{ t('analysisCompare.title') }}</h2>
-          <p class="text-sm text-slate-400">{{ comparison?.image }}</p>
-          <p class="text-xs text-slate-500">
+          <h2 class="text-2xl font-semibold text-ink">{{ t('analysisCompare.title') }}</h2>
+          <p class="text-sm text-muted">{{ comparison?.image }}</p>
+          <p class="text-xs text-subtle">
             {{ t('analysisCompare.from', { tag: comparison?.from?.tag, date: formatDate(comparison?.from?.created_at) }) }}
-            <span class="mx-2 text-slate-600">→</span>
+            <span class="mx-2 text-subtle">→</span>
             {{ t('analysisCompare.to', { tag: comparison?.to?.tag, date: formatDate(comparison?.to?.created_at) }) }}
           </p>
         </div>
 
         <div class="grid gap-4 md:grid-cols-4 mt-6">
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">{{ t('analysisCompare.totalSizeChange') }}</p>
+          <div class="stat-card">
+            <p class="text-xs text-subtle">{{ t('analysisCompare.totalSizeChange') }}</p>
             <p class="mt-1 text-lg font-semibold" :class="sizeChangeClass">
               {{ totalSizeDiffLabel }}
             </p>
           </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">{{ t('analysisCompare.layerCountChange') }}</p>
-            <p class="mt-1 text-lg font-semibold text-slate-100">
+          <div class="stat-card">
+            <p class="text-xs text-subtle">{{ t('analysisCompare.layerCountChange') }}</p>
+            <p class="mt-1 text-lg font-semibold text-ink">
               {{ layerCountDiffLabel }}
             </p>
           </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">{{ t('analysisCompare.impact') }}</p>
-            <span
-              class="mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-              :class="impactBadgeClass"
-            >
+          <div class="stat-card">
+            <p class="text-xs text-subtle">{{ t('analysisCompare.impact') }}</p>
+            <span class="badge mt-2 inline-flex items-center" :class="impactBadgeClass">
               {{ impactLabel }}
             </span>
           </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-2">
+          <div class="stat-card space-y-2">
             <div class="flex items-center justify-between">
-              <p class="text-xs text-slate-500">{{ t('analysisCompare.budgetVerdict') }}</p>
-              <span
-                class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-                :class="budgetBadgeClass"
-              >
+              <p class="text-xs text-subtle">{{ t('analysisCompare.budgetVerdict') }}</p>
+              <span class="badge inline-flex items-center" :class="budgetBadgeClass">
                 {{ budgetStatusLabel }}
               </span>
             </div>
             <div v-if="budgetReasons.length" class="space-y-1">
-              <p class="text-xs text-slate-500">{{ t('analysisCompare.reasons') }}</p>
-              <ul class="text-xs text-slate-200 list-disc list-inside space-y-0.5">
+              <p class="text-xs text-subtle">{{ t('analysisCompare.reasons') }}</p>
+              <ul class="text-xs text-ink list-disc list-inside space-y-0.5">
                 <li v-for="reason in budgetReasons" :key="reason">{{ reason }}</li>
               </ul>
             </div>
-            <p v-else class="text-xs text-slate-500">{{ t('analysisCompare.noBudgetConfigured') }}</p>
-            <p v-if="budgetThresholdLabel" class="text-[11px] text-slate-500">
+            <p v-else class="text-xs text-subtle">{{ t('analysisCompare.noBudgetConfigured') }}</p>
+            <p v-if="budgetThresholdLabel" class="text-[11px] text-subtle">
               {{ t('analysisCompare.thresholds', { label: budgetThresholdLabel }) }}
             </p>
           </div>
         </div>
 
         <div class="grid gap-6 lg:grid-cols-2 mt-8">
-          <div class="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-5 space-y-4">
+          <div class="rounded-xl border border-success/30 bg-success/10 p-5 space-y-4">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-emerald-200">{{ t('analysisCompare.addedLayers') }}</p>
-              <span class="text-xs text-emerald-300">{{ addedLayers.length }}</span>
+              <p class="text-sm font-semibold text-success">{{ t('analysisCompare.addedLayers') }}</p>
+              <span class="text-xs text-success">{{ addedLayers.length }}</span>
             </div>
-            <div v-if="addedLayers.length" class="overflow-hidden rounded-lg border border-emerald-500/30">
-              <table class="min-w-full text-left text-sm text-slate-200">
-                <thead class="bg-emerald-950/40 text-xs uppercase text-emerald-300">
+            <div v-if="addedLayers.length" class="overflow-hidden rounded-lg border border-success/30">
+              <table class="min-w-full text-left text-sm text-ink">
+                <thead class="bg-success/10 text-xs uppercase text-success">
                   <tr>
                     <th class="px-4 py-3">{{ t('analysisDetail.digest') }}</th>
                     <th class="px-4 py-3">{{ t('analysisDetail.size') }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="layer in addedLayers" :key="layer.digest" class="border-t border-emerald-500/20">
+                  <tr v-for="layer in addedLayers" :key="layer.digest" class="border-t border-success/20">
                     <td class="px-4 py-3 font-mono text-xs">{{ shortDigest(layer.digest) }}</td>
                     <td class="px-4 py-3">{{ formatBytes(layer.size_bytes) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p v-else class="text-sm text-emerald-200/80">{{ t('analysisCompare.noAddedLayers') }}</p>
+            <p v-else class="text-sm text-success/80">{{ t('analysisCompare.noAddedLayers') }}</p>
           </div>
 
-          <div class="rounded-xl border border-rose-500/30 bg-rose-950/20 p-5 space-y-4">
+          <div class="rounded-xl border border-danger/30 bg-danger/10 p-5 space-y-4">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-rose-200">{{ t('analysisCompare.removedLayers') }}</p>
-              <span class="text-xs text-rose-300">{{ removedLayers.length }}</span>
+              <p class="text-sm font-semibold text-danger">{{ t('analysisCompare.removedLayers') }}</p>
+              <span class="text-xs text-danger">{{ removedLayers.length }}</span>
             </div>
-            <div v-if="removedLayers.length" class="overflow-hidden rounded-lg border border-rose-500/30">
-              <table class="min-w-full text-left text-sm text-slate-200">
-                <thead class="bg-rose-950/40 text-xs uppercase text-rose-300">
+            <div v-if="removedLayers.length" class="overflow-hidden rounded-lg border border-danger/30">
+              <table class="min-w-full text-left text-sm text-ink">
+                <thead class="bg-danger/10 text-xs uppercase text-danger">
                   <tr>
                     <th class="px-4 py-3">{{ t('analysisDetail.digest') }}</th>
                     <th class="px-4 py-3">{{ t('analysisDetail.size') }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="layer in removedLayers" :key="layer.digest" class="border-t border-rose-500/20">
+                  <tr v-for="layer in removedLayers" :key="layer.digest" class="border-t border-danger/20">
                     <td class="px-4 py-3 font-mono text-xs">{{ shortDigest(layer.digest) }}</td>
                     <td class="px-4 py-3">{{ formatBytes(layer.size_bytes) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p v-else class="text-sm text-rose-200/80">{{ t('analysisCompare.noRemovedLayers') }}</p>
+            <p v-else class="text-sm text-danger/80">{{ t('analysisCompare.noRemovedLayers') }}</p>
           </div>
         </div>
       </div>
@@ -221,15 +215,15 @@ const impactLabel = computed(() => {
 })
 
 const impactBadgeClass = computed(() => {
-  if (totalSizeDiff.value > 0) return 'bg-rose-500/20 text-rose-200'
-  if (totalSizeDiff.value < 0) return 'bg-emerald-500/20 text-emerald-200'
-  return 'bg-slate-700/60 text-slate-200'
+  if (totalSizeDiff.value > 0) return 'badge-danger'
+  if (totalSizeDiff.value < 0) return 'badge-success'
+  return 'badge-neutral'
 })
 
 const sizeChangeClass = computed(() => {
-  if (totalSizeDiff.value > 0) return 'text-rose-200'
-  if (totalSizeDiff.value < 0) return 'text-emerald-200'
-  return 'text-slate-100'
+  if (totalSizeDiff.value > 0) return 'text-danger'
+  if (totalSizeDiff.value < 0) return 'text-success'
+  return 'text-ink'
 })
 
 const addedLayers = computed(() => comparison.value?.layers?.added ?? [])
@@ -250,10 +244,10 @@ const budgetStatusLabel = computed(() => {
 
 const budgetBadgeClass = computed(() => {
   const status = budgetResult.value?.status
-  if (status === 'fail') return 'bg-rose-500/20 text-rose-200'
-  if (status === 'warn') return 'bg-amber-500/20 text-amber-200'
-  if (status === 'ok') return 'bg-emerald-500/20 text-emerald-200'
-  return 'bg-slate-700/60 text-slate-200'
+  if (status === 'fail') return 'badge-danger'
+  if (status === 'warn') return 'badge-warning'
+  if (status === 'ok') return 'badge-success'
+  return 'badge-neutral'
 })
 
 const budgetReasons = computed(() => budgetResult.value?.reasons ?? [])

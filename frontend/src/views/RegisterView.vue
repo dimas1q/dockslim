@@ -1,57 +1,38 @@
 <template>
-  <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 shadow-xl">
-    <h2 class="text-2xl font-semibold mb-2">{{ t('auth.register.title') }}</h2>
-    <p class="text-slate-400 mb-6">{{ t('auth.register.subtitle') }}</p>
+  <div class="mx-auto max-w-md">
+    <div class="panel p-8 ds-reveal">
+      <h2 class="text-2xl font-semibold">{{ t('auth.register.title') }}</h2>
+      <p class="mt-2 text-sm text-muted">{{ t('auth.register.subtitle') }}</p>
 
-    <form class="space-y-4" @submit.prevent="handleSubmit">
-      <div>
-        <label class="text-sm text-slate-300">{{ t('auth.register.loginLabel') }}</label>
-        <input
-          v-model="login"
-          type="text"
-          class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          minlength="3"
-          required
-        />
-      </div>
-      <div>
-        <label class="text-sm text-slate-300">{{ t('auth.register.emailLabel') }}</label>
-        <input
-          v-model="email"
-          type="email"
-          class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          required
-        />
-      </div>
-      <div>
-        <label class="text-sm text-slate-300">{{ t('auth.register.passwordLabel') }}</label>
-        <input
-          v-model="password"
-          type="password"
-          class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          minlength="8"
-          required
-        />
-      </div>
+      <form class="mt-6 space-y-4" @submit.prevent="handleSubmit">
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-subtle">{{ t('auth.register.loginLabel') }}</label>
+          <input v-model="login" type="text" class="input" minlength="3" required />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-subtle">{{ t('auth.register.emailLabel') }}</label>
+          <input v-model="email" type="email" class="input" required />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-subtle">{{ t('auth.register.passwordLabel') }}</label>
+          <input v-model="password" type="password" class="input" minlength="8" required />
+        </div>
 
-      <p v-if="success" class="text-sm text-emerald-400">{{ success }}</p>
-      <p v-if="error" class="text-sm text-red-400">{{ error }}</p>
+        <p v-if="success" class="text-sm text-success">{{ success }}</p>
+        <p v-if="error" class="text-sm text-danger">{{ error }}</p>
 
-      <button
-        type="submit"
-        class="w-full rounded-lg bg-indigo-500 py-2 text-sm font-semibold hover:bg-indigo-400"
-        :disabled="loading"
-      >
-        {{ loading ? t('auth.register.submitLoading') : t('auth.register.submit') }}
-      </button>
-    </form>
+        <button type="submit" class="btn btn-primary w-full" :disabled="loading">
+          {{ loading ? t('auth.register.submitLoading') : t('auth.register.submit') }}
+        </button>
+      </form>
 
-    <p class="text-sm text-slate-400 mt-6">
-      {{ t('auth.register.footerQuestion') }}
-      <RouterLink class="text-indigo-400 hover:text-indigo-300" to="/login">
-        {{ t('auth.register.footerAction') }}
-      </RouterLink>
-    </p>
+      <p class="mt-6 text-sm text-muted">
+        {{ t('auth.register.footerQuestion') }}
+        <RouterLink class="link" to="/login">
+          {{ t('auth.register.footerAction') }}
+        </RouterLink>
+      </p>
+    </div>
   </div>
 </template>
 

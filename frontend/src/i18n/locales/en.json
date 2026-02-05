@@ -3,7 +3,11 @@
     "brand": "DockSlim",
     "tagline": "Container insights",
     "accountFallback": "Settings",
-    "logout": "Logout"
+    "logout": "Logout",
+    "nav": {
+      "projects": "Projects",
+      "account": "Account"
+    }
   },
   "nav": {
     "backToProjects": "← Back to projects",
@@ -47,7 +51,15 @@
     "revoked": "Revoked",
     "justNow": "just now",
     "empty": "—",
-    "optional": "optional"
+    "optional": "optional",
+    "search": "Search",
+    "noResults": "No results",
+    "datePlaceholder": "Select date"
+  },
+  "theme": {
+    "title": "Theme",
+    "light": "Light",
+    "dark": "Dark"
   },
   "language": {
     "title": "Language",
@@ -84,6 +96,7 @@
     "loggedInAs": "Logged in as",
     "loadingAccount": "Loading...",
     "createTitle": "Create a project",
+    "createSubtitle": "Name the project for your team and start tracking image growth.",
     "createPlaceholder": "Project name",
     "createButton": "Create project",
     "createButtonLoading": "Creating...",
@@ -148,6 +161,7 @@
     "totalSize": "Total size",
     "failedTitle": "Analysis failed",
     "failedFallback": "Analysis failed.",
+    "createdAt": "Created {date}",
     "pendingLayers": "Layer breakdown coming soon.",
     "layerBreakdown": "Layer breakdown",
     "updating": "Updating...",
@@ -164,7 +178,7 @@
     "severityCritical": "Critical",
     "severityWarning": "Warnings",
     "severityInfo": "Info",
-    "noRecommendations": "No optimization issues detected 🎉",
+    "noRecommendations": "No optimization issues detected.",
     "layers": "Layers",
     "showRaw": "Show raw JSON",
     "hideRaw": "Hide raw JSON",
@@ -173,7 +187,21 @@
     "mediaType": "Media type",
     "rerunConfirm": "Re-run this analysis? It will overwrite the current result.",
     "rerunConflict": "Analysis is already running.",
-    "deleteConfirm": "Delete this analysis? This cannot be undone."
+    "deleteConfirm": "Delete this analysis? This cannot be undone.",
+    "baselineHeading": "Compared to {branch}",
+    "baselineSubtitle": "Latest completed analysis on {branch}.",
+    "baselineLoading": "Loading baseline comparison...",
+    "baselineNotFound": "No baseline on main yet.",
+    "baselineEmpty": "Baseline data will appear after the first main analysis completes.",
+    "baselineView": "View baseline",
+    "baselineDeltaSize": "Delta size",
+    "baselineDeltaLayers": "Delta layers",
+    "baselineDeltaLargestLayer": "Delta largest layer",
+    "baselineLabel": "Baseline: {label}",
+    "baselineDefaultLabel": "Baseline: main",
+    "baselineTag": "Tag {tag}",
+    "baselineCommit": "Commit {sha}",
+    "layersLabel": "layers"
   },
   "analysisCompare": {
     "title": "Compare Analyses",
@@ -294,7 +322,56 @@
     "projectNameRequired": "Project name is required.",
     "projectNoChanges": "Make a change before saving.",
     "analysisCompare": "Compare",
+    "history": "History",
+    "trends": "Trends",
     "revokeTokenConfirm": "Revoke token \"{name}\"?"
+  },
+  "projectHistory": {
+    "title": "History",
+    "subtitle": "Browse completed analyses over time with quick filters.",
+    "loading": "Loading history...",
+    "empty": "No analyses match these filters.",
+    "filters": {
+      "image": "Image",
+      "branch": "Branch",
+      "from": "From",
+      "to": "To",
+      "status": "Status",
+      "limit": "Limit",
+      "apply": "Apply filters",
+      "applyLoading": "Loading..."
+    },
+    "table": {
+      "time": "Time",
+      "branch": "Branch",
+      "commit": "Commit",
+      "size": "Size",
+      "layers": "Layers"
+    },
+    "statusAll": "All"
+  },
+  "projectTrends": {
+    "title": "Trends",
+    "subtitle": "Track size and layer growth for your images.",
+    "loading": "Loading trend data...",
+    "empty": "No data for this selection yet.",
+    "latest": "Latest",
+    "minimum": "Minimum",
+    "maximum": "Maximum",
+    "range": "{start} – {end}",
+    "metrics": {
+      "totalSize": "Total size",
+      "layerCount": "Layer count",
+      "largestLayer": "Largest layer"
+    },
+    "filters": {
+      "image": "Image",
+      "branch": "Branch",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply filters",
+      "applyLoading": "Loading..."
+    }
   },
   "status": {
     "queued": "Queued",

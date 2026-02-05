@@ -1,44 +1,33 @@
 <template>
-  <div class="space-y-8">
-    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-      <p class="text-sm text-slate-400">{{ t('projects.loggedInAs') }}</p>
-      <p class="text-lg font-semibold">{{ auth.user?.email || t('projects.loadingAccount') }}</p>
-    </div>
+  <div class="space-y-10">
+    <section class="panel p-6 ds-reveal">
+      <p class="text-xs uppercase tracking-[0.2em] text-subtle">{{ t('projects.loggedInAs') }}</p>
+      <p class="text-lg font-semibold text-ink">{{ auth.user?.email || t('projects.loadingAccount') }}</p>
+    </section>
 
-    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-      <h2 class="text-xl font-semibold mb-4">{{ t('projects.createTitle') }}</h2>
-      <form class="flex flex-col gap-3 md:flex-row" @submit.prevent="handleCreate">
-        <input
-          v-model="newName"
-          type="text"
-          :placeholder="t('projects.createPlaceholder')"
-          class="flex-1 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-        />
-        <button
-          type="submit"
-          class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
-          :disabled="creating"
-        >
-          {{ creating ? t('projects.createButtonLoading') : t('projects.createButton') }}
-        </button>
-      </form>
-      <p v-if="createError" class="text-sm text-red-400 mt-3">{{ createError }}</p>
-    </div>
-
-    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-      <div class="flex items-center justify-between mb-4">
+    <section class="panel p-6 space-y-4 ds-reveal">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <h2 class="text-xl font-semibold">{{ t('projects.listTitle') }}</h2>
-        <button class="text-sm text-slate-300 hover:text-white" @click="fetchProjects">
-          {{ t('common.refresh') }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost text-sm" @click="fetchProjects">
+            {{ t('common.refresh') }}
+          </button>
+          <button class="btn btn-secondary text-sm" @click="openCreateModal">
+            {{ t('projects.createButton') }}
+          </button>
+        </div>
       </div>
 
-      <p v-if="deletedNotice" class="text-sm text-emerald-400 mb-3">
+      <div v-if="deletedNotice" class="callout callout-success">
         {{ t('projects.deletedNotice') }}
-      </p>
-      <p v-if="loading" class="text-sm text-slate-400">{{ t('projects.loadingProjects') }}</p>
-      <p v-else-if="error" class="text-sm text-red-400">{{ error }}</p>
-      <p v-else-if="projects.length === 0" class="text-sm text-slate-400">
+      </div>
+      <div v-if="loading" class="space-y-3">
+        <div class="h-14 rounded-xl skeleton"></div>
+        <div class="h-14 rounded-xl skeleton"></div>
+        <div class="h-14 rounded-xl skeleton"></div>
+      </div>
+      <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>
+      <p v-else-if="projects.length === 0" class="text-sm text-muted">
         {{ t('projects.empty') }}
       </p>
 
@@ -46,23 +35,53 @@
         <li
           v-for="project in projects"
           :key="project.id"
-          class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 px-4 py-3"
+          class="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3 transition hover:border-primary/40"
         >
           <div>
-            <p class="font-medium">{{ project.name }}</p>
-            <p class="text-xs text-slate-500">
+            <p class="font-medium text-ink">{{ project.name }}</p>
+            <p class="text-xs text-subtle">
               {{ t('projects.createdAt', { date: formatDate(project.created_at) }) }}
             </p>
           </div>
-          <RouterLink
-            class="text-sm text-indigo-400 hover:text-indigo-300"
-            :to="`/projects/${project.id}`"
-          >
+          <RouterLink class="link text-sm" :to="`/projects/${project.id}`">
             {{ t('projects.viewDetails') }}
           </RouterLink>
         </li>
       </ul>
-    </div>
+    </section>
+
+    <Transition name="modal-fade">
+      <div
+        v-if="showCreateModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      >
+        <div class="card w-full max-w-lg p-6 space-y-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-semibold">{{ t('projects.createTitle') }}</h3>
+              <p class="text-sm text-muted">{{ t('projects.createSubtitle') }}</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" type="button" @click="closeCreateModal" aria-label="Close">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path :d="closeIcon" />
+              </svg>
+            </button>
+          </div>
+          <form class="flex flex-col gap-3 md:flex-row md:items-center" @submit.prevent="handleCreate">
+            <input
+              v-model="newName"
+              type="text"
+              :placeholder="t('projects.createPlaceholder')"
+              class="input flex-1"
+            />
+            <button type="submit" class="btn btn-primary" :disabled="creating">
+              {{ creating ? t('projects.createButtonLoading') : t('projects.createButton') }}
+            </button>
+          </form>
+          <p v-if="createError" class="text-sm text-danger">{{ createError }}</p>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -72,6 +91,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createProject, listProjects } from '../api/client'
 import { useAuth } from '../stores/auth'
+import { mdiClose } from '@mdi/js'
 
 const auth = useAuth()
 const route = useRoute()
@@ -83,6 +103,19 @@ const newName = ref('')
 const creating = ref(false)
 const createError = ref('')
 const deletedNotice = ref(false)
+const showCreateModal = ref(false)
+const closeIcon = mdiClose
+
+const openCreateModal = () => {
+  createError.value = ''
+  showCreateModal.value = true
+}
+
+const closeCreateModal = () => {
+  showCreateModal.value = false
+  createError.value = ''
+  newName.value = ''
+}
 
 const fetchProjects = async () => {
   loading.value = true
@@ -114,6 +147,7 @@ const handleCreate = async () => {
     const project = await createProject({ name: trimmed })
     projects.value = [project, ...projects.value]
     newName.value = ''
+    showCreateModal.value = false
   } catch (err) {
     if (err.status === 409) {
       createError.value = t('projects.createNameDuplicate')

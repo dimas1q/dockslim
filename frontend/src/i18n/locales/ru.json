@@ -1,9 +1,13 @@
 {
   "app": {
     "brand": "DockSlim",
-    "tagline": "Инсайты по контейнерам",
+    "tagline": "Container insights",
     "accountFallback": "Настройки",
-    "logout": "Выйти"
+    "logout": "Выйти",
+    "nav": {
+      "projects": "Проекты",
+      "account": "Аккаунт"
+    }
   },
   "nav": {
     "backToProjects": "← Назад к проектам",
@@ -47,7 +51,15 @@
     "revoked": "Отозван",
     "justNow": "только что",
     "empty": "—",
-    "optional": "опционально"
+    "optional": "опционально",
+    "search": "Поиск",
+    "noResults": "Ничего не найдено",
+    "datePlaceholder": "Выберите дату"
+  },
+  "theme": {
+    "title": "Тема",
+    "light": "Светлая",
+    "dark": "Тёмная"
   },
   "language": {
     "title": "Язык",
@@ -84,6 +96,7 @@
     "loggedInAs": "Вы вошли как",
     "loadingAccount": "Загрузка...",
     "createTitle": "Создать проект",
+    "createSubtitle": "Задайте понятное название проекта для команды.",
     "createPlaceholder": "Название проекта",
     "createButton": "Создать проект",
     "createButtonLoading": "Создаём...",
@@ -148,6 +161,7 @@
     "totalSize": "Общий размер",
     "failedTitle": "Анализ не выполнен",
     "failedFallback": "Анализ завершился ошибкой.",
+    "createdAt": "Создано {date}",
     "pendingLayers": "Разбор слоёв скоро появится.",
     "layerBreakdown": "Разбор слоёв",
     "updating": "Обновляем...",
@@ -164,7 +178,7 @@
     "severityCritical": "Критично",
     "severityWarning": "Предупреждения",
     "severityInfo": "Информация",
-    "noRecommendations": "Проблем оптимизации не обнаружено 🎉",
+    "noRecommendations": "Проблем оптимизации не обнаружено.",
     "layers": "Слои",
     "showRaw": "Показать raw JSON",
     "hideRaw": "Скрыть raw JSON",
@@ -173,7 +187,21 @@
     "mediaType": "Тип медиа",
     "rerunConfirm": "Перезапустить анализ? Он перезапишет текущий результат.",
     "rerunConflict": "Анализ уже выполняется.",
-    "deleteConfirm": "Удалить этот анализ? Это действие нельзя отменить."
+    "deleteConfirm": "Удалить этот анализ? Это действие нельзя отменить.",
+    "baselineHeading": "Сравнение с {branch}",
+    "baselineSubtitle": "Последний завершённый анализ для {branch}.",
+    "baselineLoading": "Загружаем сравнение с базой...",
+    "baselineNotFound": "Базовый анализ для main пока не найден.",
+    "baselineEmpty": "Базовые данные появятся после первого анализа основной ветки.",
+    "baselineView": "Открыть базу",
+    "baselineDeltaSize": "Изменение размера",
+    "baselineDeltaLayers": "Изменение слоёв",
+    "baselineDeltaLargestLayer": "Изменение крупнейшего слоя",
+    "baselineLabel": "База: {label}",
+    "baselineDefaultLabel": "База: main",
+    "baselineTag": "Тег {tag}",
+    "baselineCommit": "Коммит {sha}",
+    "layersLabel": "слоёв"
   },
   "analysisCompare": {
     "title": "Сравнение анализов",
@@ -294,7 +322,56 @@
     "projectNameRequired": "Название проекта обязательно.",
     "projectNoChanges": "Сначала внесите изменения.",
     "analysisCompare": "Сравнить",
+    "history": "История",
+    "trends": "Тренды",
     "revokeTokenConfirm": "Отозвать токен \"{name}\"?"
+  },
+  "projectHistory": {
+    "title": "История",
+    "subtitle": "Просматривайте завершённые анализы во времени с удобными фильтрами.",
+    "loading": "Загрузка истории...",
+    "empty": "Нет анализов для этих фильтров.",
+    "filters": {
+      "image": "Образ",
+      "branch": "Ветка",
+      "from": "С",
+      "to": "По",
+      "status": "Статус",
+      "limit": "Лимит",
+      "apply": "Применить фильтры",
+      "applyLoading": "Загрузка..."
+    },
+    "table": {
+      "time": "Время",
+      "branch": "Ветка",
+      "commit": "Коммит",
+      "size": "Размер",
+      "layers": "Слои"
+    },
+    "statusAll": "Все"
+  },
+  "projectTrends": {
+    "title": "Тренды",
+    "subtitle": "Отслеживайте рост размера и количества слоёв по образам.",
+    "loading": "Загрузка данных трендов...",
+    "empty": "Нет данных для выбранных параметров.",
+    "latest": "Последнее",
+    "minimum": "Минимум",
+    "maximum": "Максимум",
+    "range": "{start} – {end}",
+    "metrics": {
+      "totalSize": "Общий размер",
+      "layerCount": "Количество слоёв",
+      "largestLayer": "Крупнейший слой"
+    },
+    "filters": {
+      "image": "Образ",
+      "branch": "Ветка",
+      "from": "С",
+      "to": "По",
+      "apply": "Применить фильтры",
+      "applyLoading": "Загрузка..."
+    }
   },
   "status": {
     "queued": "В очереди",

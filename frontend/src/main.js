@@ -3,5 +3,7 @@ import App from './App.vue'
 import './assets/main.css'
 import router from './router'
 import i18n from './i18n'
+import { initTheme } from './stores/theme'
 
+initTheme()
 createApp(App).use(router).use(i18n).mount('#app')

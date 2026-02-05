@@ -1,45 +1,33 @@
 <template>
-  <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 shadow-xl">
-    <h2 class="text-2xl font-semibold mb-2">{{ t('auth.login.title') }}</h2>
-    <p class="text-slate-400 mb-6">{{ t('auth.login.subtitle') }}</p>
+  <div class="mx-auto max-w-md">
+    <div class="panel p-8 ds-reveal">
+      <h2 class="text-2xl font-semibold">{{ t('auth.login.title') }}</h2>
+      <p class="mt-2 text-sm text-muted">{{ t('auth.login.subtitle') }}</p>
 
-    <form class="space-y-4" @submit.prevent="handleSubmit">
-      <div>
-        <label class="text-sm text-slate-300">{{ t('auth.login.identifierLabel') }}</label>
-        <input
-          v-model="identifier"
-          type="text"
-          class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          required
-        />
-      </div>
-      <div>
-        <label class="text-sm text-slate-300">{{ t('auth.login.passwordLabel') }}</label>
-        <input
-          v-model="password"
-          type="password"
-          class="mt-1 w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
-          required
-        />
-      </div>
+      <form class="mt-6 space-y-4" @submit.prevent="handleSubmit">
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-subtle">{{ t('auth.login.identifierLabel') }}</label>
+          <input v-model="identifier" type="text" class="input" required />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-subtle">{{ t('auth.login.passwordLabel') }}</label>
+          <input v-model="password" type="password" class="input" required />
+        </div>
 
-      <p v-if="error" class="text-sm text-red-400">{{ error }}</p>
+        <p v-if="error" class="text-sm text-danger">{{ error }}</p>
 
-      <button
-        type="submit"
-        class="w-full rounded-lg bg-indigo-500 py-2 text-sm font-semibold hover:bg-indigo-400"
-        :disabled="loading"
-      >
-        {{ loading ? t('auth.login.submitLoading') : t('auth.login.submit') }}
-      </button>
-    </form>
+        <button type="submit" class="btn btn-primary w-full" :disabled="loading">
+          {{ loading ? t('auth.login.submitLoading') : t('auth.login.submit') }}
+        </button>
+      </form>
 
-    <p class="text-sm text-slate-400 mt-6">
-      {{ t('auth.login.footerQuestion') }}
-      <RouterLink class="text-indigo-400 hover:text-indigo-300" to="/register">
-        {{ t('auth.login.footerAction') }}
-      </RouterLink>
-    </p>
+      <p class="mt-6 text-sm text-muted">
+        {{ t('auth.login.footerQuestion') }}
+        <RouterLink class="link" to="/register">
+          {{ t('auth.login.footerAction') }}
+        </RouterLink>
+      </p>
+    </div>
   </div>
 </template>
 

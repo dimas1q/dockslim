@@ -1,31 +1,39 @@
 <template>
-  <div class="space-y-6">
-    <RouterLink class="text-sm text-indigo-400 hover:text-indigo-300" :to="`/projects/${projectId}`">
+  <div class="space-y-10">
+    <RouterLink class="link-subtle text-sm" :to="`/projects/${projectId}`">
       {{ t('nav.backToProject') }}
     </RouterLink>
 
-    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <p v-if="loading" class="text-sm text-slate-400">{{ t('analysisDetail.loading') }}</p>
-      <p v-else-if="error" class="text-sm text-red-400">{{ error }}</p>
+    <div class="panel p-6 space-y-4 ds-reveal">
+      <div v-if="loading" class="space-y-3">
+        <div class="h-6 w-64 rounded skeleton"></div>
+        <div class="h-4 w-48 rounded skeleton"></div>
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="h-20 rounded-xl skeleton"></div>
+          <div class="h-20 rounded-xl skeleton"></div>
+          <div class="h-20 rounded-xl skeleton"></div>
+        </div>
+      </div>
+      <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>
       <div v-else>
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 class="text-2xl font-semibold">{{ analysis?.image }}:{{ analysis?.tag }}</h2>
-            <p class="text-sm text-slate-400 mt-1">
-              Created {{ formatDate(analysis?.created_at) }}
+            <h2 class="text-2xl font-semibold text-ink">{{ analysis?.image }}:{{ analysis?.tag }}</h2>
+            <p class="text-sm text-muted mt-1">
+              {{ t('analysisDetail.createdAt', { date: formatDate(analysis?.created_at) }) }}
             </p>
           </div>
           <div class="flex items-center gap-3">
             <button
               v-if="analysis?.status === 'completed' && previousAnalysis"
-              class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+              class="btn btn-secondary px-3 py-1 text-xs"
               @click="handleCompare"
             >
               {{ t('analysisDetail.compare') }}
             </button>
             <button
               v-if="isOwner"
-              class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-60"
+              class="btn btn-secondary px-3 py-1 text-xs"
               :disabled="rerunning"
               @click="handleRerun"
             >
@@ -33,179 +41,179 @@
             </button>
             <button
               v-if="isOwner"
-              class="rounded-lg border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:border-rose-400 disabled:opacity-60"
+              class="btn btn-danger px-3 py-1 text-xs"
               :disabled="deleting"
               @click="handleDeleteAnalysis"
             >
               {{ deleting ? t('analysisDetail.deleting') : t('analysisDetail.delete') }}
             </button>
-            <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass">
+            <span class="badge" :class="statusBadgeClass">
               {{ statusLabel(analysis?.status) }}
             </span>
           </div>
         </div>
         <p
           v-if="analysis?.status === 'completed' && !previousAnalysis"
-          class="text-xs text-slate-400"
+          class="text-xs text-muted"
         >
           {{ t('analysisDetail.noPrevious') }}
         </p>
-        <p v-if="compareError" class="text-xs text-rose-400">{{ compareError }}</p>
-        <p v-if="rerunError" class="text-sm text-rose-400">{{ rerunError }}</p>
-        <p v-if="deleteError" class="text-sm text-rose-400">{{ deleteError }}</p>
+        <p v-if="compareError" class="text-xs text-danger">{{ compareError }}</p>
+        <p v-if="rerunError" class="text-sm text-danger">{{ rerunError }}</p>
+        <p v-if="deleteError" class="text-sm text-danger">{{ deleteError }}</p>
 
-        <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300 mt-4">
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">{{ t('analysisDetail.created') }}</p>
+        <div class="grid gap-4 md:grid-cols-3 text-sm text-muted mt-4">
+          <div class="stat-card">
+            <p class="text-xs text-subtle">{{ t('analysisDetail.created') }}</p>
             <p class="mt-1">{{ formatDate(analysis?.created_at) }}</p>
           </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">{{ t('analysisDetail.updated') }}</p>
+          <div class="stat-card">
+            <p class="text-xs text-subtle">{{ t('analysisDetail.updated') }}</p>
             <p class="mt-1">{{ formatDate(analysis?.updated_at) }}</p>
           </div>
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">{{ t('analysisDetail.totalSize') }}</p>
+          <div class="stat-card">
+            <p class="text-xs text-subtle">{{ t('analysisDetail.totalSize') }}</p>
             <p class="mt-1">
               {{ totalSizeDisplay }}
             </p>
           </div>
         </div>
 
-        <div class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
+        <div class="mt-6 surface p-6 space-y-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-semibold text-slate-200">{{ baselineHeading }}</p>
-              <p class="text-xs text-slate-400">
-                Latest completed analysis on {{ baselineBranchLabel }}.
+              <p class="text-sm font-semibold text-ink">{{ baselineHeading }}</p>
+              <p class="text-xs text-muted">
+                {{ t('analysisDetail.baselineSubtitle', { branch: baselineBranchLabel }) }}
               </p>
             </div>
             <span
               v-if="baselineCompare"
-              class="rounded-full px-3 py-1 text-xs font-semibold"
+              class="badge"
               :class="baselineStatusClass"
             >
               {{ baselineCompare.status }}
             </span>
           </div>
-          <p v-if="baselineLoading" class="text-xs text-slate-400">Loading baseline comparison...</p>
-          <p v-else-if="baselineError" class="text-xs text-slate-400">{{ baselineError }}</p>
+          <p v-if="baselineLoading" class="text-xs text-muted">{{ t('analysisDetail.baselineLoading') }}</p>
+          <p v-else-if="baselineError" class="text-xs text-muted">{{ baselineError }}</p>
           <div v-else-if="baselineCompare" class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300">
-              <div class="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-                <p class="text-xs text-slate-500">Delta size</p>
+            <div class="grid gap-4 md:grid-cols-3 text-sm text-muted">
+              <div class="stat-card">
+                <p class="text-xs text-subtle">{{ t('analysisDetail.baselineDeltaSize') }}</p>
                 <p class="mt-1 font-semibold" :class="deltaClass(baselineCompare.deltas.total_size_bytes)">
                   {{ formatDeltaBytes(baselineCompare.deltas.total_size_bytes) }}
                 </p>
               </div>
-              <div class="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-                <p class="text-xs text-slate-500">Delta layers</p>
+              <div class="stat-card">
+                <p class="text-xs text-subtle">{{ t('analysisDetail.baselineDeltaLayers') }}</p>
                 <p class="mt-1 font-semibold" :class="deltaClass(baselineCompare.deltas.layer_count)">
-                  {{ formatDeltaCount(baselineCompare.deltas.layer_count, 'layers') }}
+                  {{ formatDeltaCount(baselineCompare.deltas.layer_count, t('analysisDetail.layersLabel')) }}
                 </p>
               </div>
-              <div class="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-                <p class="text-xs text-slate-500">Delta largest layer</p>
+              <div class="stat-card">
+                <p class="text-xs text-subtle">{{ t('analysisDetail.baselineDeltaLargestLayer') }}</p>
                 <p class="mt-1 font-semibold" :class="deltaClass(baselineCompare.deltas.largest_layer_bytes)">
                   {{ formatDeltaBytes(baselineCompare.deltas.largest_layer_bytes) }}
                 </p>
               </div>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
               <span>{{ baselineLabel }}</span>
               <RouterLink
                 v-if="baselineLink"
-                class="text-indigo-400 hover:text-indigo-300"
+                class="link"
                 :to="baselineLink"
               >
-                View baseline
+                {{ t('analysisDetail.baselineView') }}
               </RouterLink>
             </div>
           </div>
-          <p v-else class="text-xs text-slate-400">
-            Baseline data will appear after the first main analysis completes.
+          <p v-else class="text-xs text-muted">
+            {{ t('analysisDetail.baselineEmpty') }}
           </p>
         </div>
 
-        <div v-if="failedMessage" class="mt-6 rounded-xl border border-rose-500/40 bg-rose-950/40 p-6">
-          <p class="text-sm font-semibold text-rose-200">{{ t('analysisDetail.failedTitle') }}</p>
-          <p class="mt-2 text-sm text-rose-300">{{ failedMessage }}</p>
+        <div v-if="failedMessage" class="mt-6 callout callout-danger">
+          <p class="text-sm font-semibold">{{ t('analysisDetail.failedTitle') }}</p>
+          <p class="mt-2 text-sm">{{ failedMessage }}</p>
         </div>
-        <div v-else-if="!analysis?.result_json" class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6">
-          <p class="text-sm text-slate-400">{{ t('analysisDetail.pendingLayers') }}</p>
+        <div v-else-if="!analysis?.result_json" class="mt-6 surface p-6">
+          <p class="text-sm text-muted">{{ t('analysisDetail.pendingLayers') }}</p>
         </div>
         <div v-else class="mt-6 space-y-6">
-          <div class="flex items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center justify-between text-xs text-muted">
             <span>{{ t('analysisDetail.layerBreakdown') }}</span>
             <span v-if="polling">{{ t('analysisDetail.updating') }}</span>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
-            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
-              <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.summary') }}</p>
-              <div class="text-sm text-slate-300 space-y-2">
+            <div class="surface p-6 space-y-3">
+              <p class="text-sm font-semibold text-ink">{{ t('analysisDetail.summary') }}</p>
+              <div class="text-sm text-muted space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">{{ t('analysisDetail.image') }}</span>
+                  <span class="text-subtle">{{ t('analysisDetail.image') }}</span>
                   <span>{{ analysis?.image }}:{{ analysis?.tag }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">{{ t('analysisDetail.totalSize') }}</span>
+                  <span class="text-subtle">{{ t('analysisDetail.totalSize') }}</span>
                   <span>{{ totalSizeDisplay }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">{{ t('analysisDetail.layerCount') }}</span>
+                  <span class="text-subtle">{{ t('analysisDetail.layerCount') }}</span>
                   <span>{{ layerCountDisplay }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">{{ t('analysisDetail.manifestType') }}</span>
+                  <span class="text-subtle">{{ t('analysisDetail.manifestType') }}</span>
                   <span>{{ manifestTypeLabel }}</span>
                 </div>
               </div>
             </div>
 
-            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
-              <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.insights') }}</p>
-              <div class="space-y-3 text-sm text-slate-300">
+            <div class="surface p-6 space-y-3">
+              <p class="text-sm font-semibold text-ink">{{ t('analysisDetail.insights') }}</p>
+              <div class="space-y-3 text-sm text-muted">
                 <div>
-                  <p class="text-xs uppercase text-slate-500 tracking-wide">{{ t('analysisDetail.warnings') }}</p>
+                  <p class="text-xs uppercase text-subtle tracking-wide">{{ t('analysisDetail.warnings') }}</p>
                   <ul v-if="warnings.length" class="mt-2 space-y-2">
                     <li
                       v-for="warning in warnings"
                       :key="warning"
-                      class="rounded-lg border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-rose-200"
+                      class="callout callout-danger"
                     >
                       {{ warning }}
                     </li>
                   </ul>
-                  <p v-else class="mt-2 text-slate-400">{{ t('analysisDetail.noWarnings') }}</p>
+                  <p v-else class="mt-2 text-muted">{{ t('analysisDetail.noWarnings') }}</p>
                 </div>
                 <div>
-                  <p class="text-xs uppercase text-slate-500 tracking-wide">{{ t('analysisDetail.largestLayers') }}</p>
+                  <p class="text-xs uppercase text-subtle tracking-wide">{{ t('analysisDetail.largestLayers') }}</p>
                   <ul v-if="largestLayers.length" class="mt-2 space-y-2">
                     <li
                       v-for="layer in largestLayers"
                       :key="layer.digest"
-                      class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2"
+                      class="flex items-center justify-between rounded-lg border border-border bg-card/60 px-3 py-2"
                     >
-                      <span class="text-slate-300">{{ shortDigest(layer.digest) }}</span>
-                      <span class="text-slate-200">{{ formatBytes(layer.size_bytes) }}</span>
+                      <span class="text-muted">{{ shortDigest(layer.digest) }}</span>
+                      <span class="text-ink">{{ formatBytes(layer.size_bytes) }}</span>
                     </li>
                   </ul>
-                  <p v-else class="mt-2 text-slate-400">{{ t('analysisDetail.noLayers') }}</p>
+                  <p v-else class="mt-2 text-muted">{{ t('analysisDetail.noLayers') }}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
-            <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.recommendations') }}</p>
+          <div class="surface p-6 space-y-4">
+            <p class="text-sm font-semibold text-ink">{{ t('analysisDetail.recommendations') }}</p>
             <div v-if="recommendations.length" class="flex flex-wrap items-center gap-3 text-xs">
-              <span class="rounded-full border px-3 py-1" :class="severityStyles('critical').container">
+              <span class="badge" :class="severityStyles('critical').container">
                 {{ t('analysisDetail.severityCritical') }}: {{ recommendationCounts.critical }}
               </span>
-              <span class="rounded-full border px-3 py-1" :class="severityStyles('warning').container">
+              <span class="badge" :class="severityStyles('warning').container">
                 {{ t('analysisDetail.severityWarning') }}: {{ recommendationCounts.warning }}
               </span>
-              <span class="rounded-full border px-3 py-1" :class="severityStyles('info').container">
+              <span class="badge" :class="severityStyles('info').container">
                 {{ t('analysisDetail.severityInfo') }}: {{ recommendationCounts.info }}
               </span>
             </div>
@@ -223,27 +231,27 @@
                   ></span>
                   <p class="text-sm font-semibold">{{ recommendation.title }}</p>
                 </div>
-                <p class="mt-2 text-sm text-slate-200">{{ recommendation.description }}</p>
-                <p class="mt-2 text-xs text-slate-400">{{ recommendation.suggested_action }}</p>
+                <p class="mt-2 text-sm text-ink">{{ recommendation.description }}</p>
+                <p class="mt-2 text-xs text-muted">{{ recommendation.suggested_action }}</p>
               </div>
             </div>
-            <p v-else class="text-sm text-slate-400">{{ t('analysisDetail.noRecommendations') }}</p>
+            <p v-else class="text-sm text-muted">{{ t('analysisDetail.noRecommendations') }}</p>
           </div>
 
-          <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
+          <div class="surface p-6 space-y-4">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.layers') }}</p>
+              <p class="text-sm font-semibold text-ink">{{ t('analysisDetail.layers') }}</p>
               <button
-                class="text-xs text-indigo-400 hover:text-indigo-300"
+                class="text-xs text-primary hover:text-primary-strong"
                 type="button"
                 @click="showRaw = !showRaw"
               >
                 {{ showRaw ? t('analysisDetail.hideRaw') : t('analysisDetail.showRaw') }}
               </button>
             </div>
-            <div class="max-h-80 overflow-y-auto rounded-lg border border-slate-800">
-              <table class="min-w-full text-left text-sm text-slate-300">
-                <thead class="bg-slate-900/70 text-xs uppercase text-slate-500">
+            <div class="max-h-80 overflow-y-auto rounded-lg border border-border">
+              <table class="min-w-full text-left text-sm text-muted">
+                <thead class="bg-card/70 text-xs uppercase text-subtle">
                   <tr>
                     <th class="px-4 py-3">{{ t('analysisDetail.digest') }}</th>
                     <th class="px-4 py-3">{{ t('analysisDetail.size') }}</th>
@@ -251,12 +259,12 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="layer in layers" :key="layer.digest" class="border-t border-slate-800">
-                    <td class="px-4 py-3 font-mono text-xs text-slate-200">
+                  <tr v-for="layer in layers" :key="layer.digest" class="border-t border-border">
+                    <td class="px-4 py-3 font-mono text-xs text-ink">
                       {{ shortDigest(layer.digest) }}
                     </td>
                     <td class="px-4 py-3">{{ formatBytes(layer.size_bytes) }}</td>
-                    <td class="px-4 py-3 text-xs text-slate-400">
+                    <td class="px-4 py-3 text-xs text-muted">
                       {{ layer.media_type || t('common.empty') }}
                     </td>
                   </tr>
@@ -265,7 +273,7 @@
             </div>
             <pre
               v-if="showRaw"
-              class="whitespace-pre-wrap break-words rounded-lg bg-slate-950/70 p-4 text-xs text-slate-200"
+              class="whitespace-pre-wrap break-words rounded-lg border border-border bg-base/60 p-4 text-xs text-ink"
             >
 {{ formattedResult }}
             </pre>
@@ -274,12 +282,29 @@
       </div>
     </div>
   </div>
+  <BaseConfirmModal
+    v-model="showRerunConfirm"
+    :title="t('analysisDetail.rerunConfirm')"
+    :confirm-label="t('analysisDetail.rerun')"
+    :cancel-label="t('common.cancel')"
+    tone="primary"
+    @confirm="confirmRerun"
+  />
+  <BaseConfirmModal
+    v-model="showDeleteConfirm"
+    :title="t('analysisDetail.deleteConfirm')"
+    :confirm-label="t('analysisDetail.delete')"
+    :cancel-label="t('common.cancel')"
+    tone="danger"
+    @confirm="confirmDelete"
+  />
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import BaseConfirmModal from '../components/BaseConfirmModal.vue'
 import {
   deleteAnalysis,
   getAnalysis,
@@ -304,6 +329,8 @@ const rerunning = ref(false)
 const rerunError = ref('')
 const deleting = ref(false)
 const deleteError = ref('')
+const showRerunConfirm = ref(false)
+const showDeleteConfirm = ref(false)
 const showRaw = ref(false)
 const analyses = ref([])
 const compareError = ref('')
@@ -453,7 +480,7 @@ const fetchBaselineCompare = async () => {
     baselineCompare.value = await getBaselineCompare(analysisId)
   } catch (err) {
     if (err.status === 404) {
-      baselineError.value = 'No baseline on main yet.'
+      baselineError.value = t('analysisDetail.baselineNotFound')
     } else {
       baselineError.value = err.message
     }
@@ -491,13 +518,13 @@ const shortDigest = (value) => {
 const baselineStatusClass = computed(() => {
   switch (baselineCompare.value?.status) {
     case 'OK':
-      return 'bg-emerald-500/20 text-emerald-200'
+      return 'badge-success'
     case 'WARN':
-      return 'bg-amber-500/20 text-amber-200'
+      return 'badge-warning'
     case 'FAIL':
-      return 'bg-rose-500/20 text-rose-200'
+      return 'badge-danger'
     default:
-      return 'bg-slate-700/40 text-slate-200'
+      return 'badge-neutral'
   }
 })
 
@@ -514,9 +541,9 @@ const formatDeltaCount = (value, label) => {
 }
 
 const deltaClass = (value) => {
-  if (value > 0) return 'text-rose-200'
-  if (value < 0) return 'text-emerald-200'
-  return 'text-slate-200'
+  if (value > 0) return 'text-danger'
+  if (value < 0) return 'text-success'
+  return 'text-muted'
 }
 
 const baselineLabel = computed(() => {
@@ -524,15 +551,18 @@ const baselineLabel = computed(() => {
   const baseline = baselineCompare.value.baseline
   const parts = []
   if (baseline.tag) {
-    parts.push(`Tag ${baseline.tag}`)
+    parts.push(t('analysisDetail.baselineTag', { tag: baseline.tag }))
   }
   if (baseline.commit_sha) {
-    parts.push(`Commit ${baseline.commit_sha.slice(0, 8)}`)
+    parts.push(t('analysisDetail.baselineCommit', { sha: baseline.commit_sha.slice(0, 8) }))
   }
   if (baseline.analyzed_at) {
-    parts.push(new Date(baseline.analyzed_at).toLocaleString())
+    parts.push(new Date(baseline.analyzed_at).toLocaleString(locale.value))
   }
-  return parts.length ? `Baseline: ${parts.join(' · ')}` : 'Baseline: main'
+  if (parts.length) {
+    return t('analysisDetail.baselineLabel', { label: parts.join(' · ') })
+  }
+  return t('analysisDetail.baselineDefaultLabel')
 })
 
 const baselineLink = computed(() => {
@@ -545,20 +575,22 @@ const baselineBranchLabel = computed(() => {
   return baselineCompare.value.baseline.ref_branch || 'main'
 })
 
-const baselineHeading = computed(() => `Compared to ${baselineBranchLabel.value}`)
+const baselineHeading = computed(() =>
+  t('analysisDetail.baselineHeading', { branch: baselineBranchLabel.value }),
+)
 
 const statusBadgeClass = computed(() => {
   switch (analysis.value?.status) {
     case 'completed':
-      return 'bg-emerald-500/20 text-emerald-200'
+      return 'badge-success'
     case 'running':
-      return 'bg-sky-500/20 text-sky-200'
+      return 'badge-info'
     case 'queued':
-      return 'bg-slate-700/40 text-slate-200'
+      return 'badge-neutral'
     case 'failed':
-      return 'bg-rose-500/20 text-rose-200'
+      return 'badge-danger'
     default:
-      return 'bg-amber-500/20 text-amber-200'
+      return 'badge-warning'
   }
 })
 
@@ -627,23 +659,23 @@ const severityStyles = (severity) => {
   switch (severity) {
     case 'critical':
       return {
-        container: 'border-rose-500/40 bg-rose-950/30',
-        icon: 'bg-rose-400',
+        container: 'border border-danger/30 bg-danger/10 text-danger',
+        icon: 'bg-danger',
       }
     case 'warning':
       return {
-        container: 'border-amber-500/40 bg-amber-950/30',
-        icon: 'bg-amber-400',
+        container: 'border border-warning/30 bg-warning/10 text-warning',
+        icon: 'bg-warning',
       }
     case 'info':
       return {
-        container: 'border-sky-500/40 bg-sky-950/30',
-        icon: 'bg-sky-400',
+        container: 'border border-primary/30 bg-primary/10 text-primary',
+        icon: 'bg-primary',
       }
     default:
       return {
-        container: 'border-slate-700 bg-slate-950/30',
-        icon: 'bg-slate-400',
+        container: 'border border-border bg-card/60 text-muted',
+        icon: 'bg-subtle',
       }
   }
 }
@@ -659,12 +691,11 @@ const formattedResult = computed(() => {
   }
 })
 
-const handleRerun = async () => {
-  const confirmed = window.confirm(t('analysisDetail.rerunConfirm'))
-  if (!confirmed) {
-    return
-  }
+const handleRerun = () => {
+  showRerunConfirm.value = true
+}
 
+const confirmRerun = async () => {
   rerunError.value = ''
   rerunning.value = true
   try {
@@ -694,15 +725,14 @@ const handleCompare = () => {
   })
 }
 
-const handleDeleteAnalysis = async () => {
+const handleDeleteAnalysis = () => {
   if (!analysis.value?.id) {
     return
   }
-  const confirmed = window.confirm(t('analysisDetail.deleteConfirm'))
-  if (!confirmed) {
-    return
-  }
+  showDeleteConfirm.value = true
+}
 
+const confirmDelete = async () => {
   deleteError.value = ''
   deleting.value = true
   try {
@@ -714,7 +744,7 @@ const handleDeleteAnalysis = async () => {
     deleting.value = false
   }
 }
-</script>
+
 const statusLabel = (status) => {
   if (!status) {
     return t('common.empty')
@@ -722,3 +752,4 @@ const statusLabel = (status) => {
   const key = `status.${status}`
   return t(key)
 }
+</script>
