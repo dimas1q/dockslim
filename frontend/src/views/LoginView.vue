@@ -1,11 +1,11 @@
 <template>
   <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 shadow-xl">
-    <h2 class="text-2xl font-semibold mb-2">Welcome back</h2>
-    <p class="text-slate-400 mb-6">Sign in to manage your projects.</p>
+    <h2 class="text-2xl font-semibold mb-2">{{ t('auth.login.title') }}</h2>
+    <p class="text-slate-400 mb-6">{{ t('auth.login.subtitle') }}</p>
 
     <form class="space-y-4" @submit.prevent="handleSubmit">
       <div>
-        <label class="text-sm text-slate-300">Email or login</label>
+        <label class="text-sm text-slate-300">{{ t('auth.login.identifierLabel') }}</label>
         <input
           v-model="identifier"
           type="text"
@@ -14,7 +14,7 @@
         />
       </div>
       <div>
-        <label class="text-sm text-slate-300">Password</label>
+        <label class="text-sm text-slate-300">{{ t('auth.login.passwordLabel') }}</label>
         <input
           v-model="password"
           type="password"
@@ -30,13 +30,15 @@
         class="w-full rounded-lg bg-indigo-500 py-2 text-sm font-semibold hover:bg-indigo-400"
         :disabled="loading"
       >
-        {{ loading ? 'Signing in...' : 'Sign in' }}
+        {{ loading ? t('auth.login.submitLoading') : t('auth.login.submit') }}
       </button>
     </form>
 
     <p class="text-sm text-slate-400 mt-6">
-      New to DockSlim?
-      <RouterLink class="text-indigo-400 hover:text-indigo-300" to="/register">Create an account</RouterLink>
+      {{ t('auth.login.footerQuestion') }}
+      <RouterLink class="text-indigo-400 hover:text-indigo-300" to="/register">
+        {{ t('auth.login.footerAction') }}
+      </RouterLink>
     </p>
   </div>
 </template>
@@ -44,10 +46,12 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { loginUser } from '../api/client'
 import { loadCurrentUser } from '../stores/auth'
 
 const router = useRouter()
+const { t } = useI18n()
 const identifier = ref('')
 const password = ref('')
 const error = ref('')

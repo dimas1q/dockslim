@@ -1,11 +1,11 @@
 <template>
   <div class="space-y-6">
     <RouterLink class="text-sm text-indigo-400 hover:text-indigo-300" :to="`/projects/${projectId}`">
-      ← Back to project
+      {{ t('nav.backToProject') }}
     </RouterLink>
 
     <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <p v-if="loading" class="text-sm text-slate-400">Loading analysis...</p>
+      <p v-if="loading" class="text-sm text-slate-400">{{ t('analysisDetail.loading') }}</p>
       <p v-else-if="error" class="text-sm text-red-400">{{ error }}</p>
       <div v-else>
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -21,7 +21,7 @@
               class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
               @click="handleCompare"
             >
-              Compare
+              {{ t('analysisDetail.compare') }}
             </button>
             <button
               v-if="isOwner"
@@ -29,7 +29,7 @@
               :disabled="rerunning"
               @click="handleRerun"
             >
-              {{ rerunning ? 'Re-running...' : 'Re-run analysis' }}
+              {{ rerunning ? t('analysisDetail.rerunning') : t('analysisDetail.rerun') }}
             </button>
             <button
               v-if="isOwner"
@@ -37,10 +37,10 @@
               :disabled="deleting"
               @click="handleDeleteAnalysis"
             >
-              {{ deleting ? 'Deleting...' : 'Delete analysis' }}
+              {{ deleting ? t('analysisDetail.deleting') : t('analysisDetail.delete') }}
             </button>
             <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass">
-              {{ analysis?.status }}
+              {{ statusLabel(analysis?.status) }}
             </span>
           </div>
         </div>
@@ -48,7 +48,7 @@
           v-if="analysis?.status === 'completed' && !previousAnalysis"
           class="text-xs text-slate-400"
         >
-          No previous completed analysis to compare.
+          {{ t('analysisDetail.noPrevious') }}
         </p>
         <p v-if="compareError" class="text-xs text-rose-400">{{ compareError }}</p>
         <p v-if="rerunError" class="text-sm text-rose-400">{{ rerunError }}</p>
@@ -56,15 +56,15 @@
 
         <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300 mt-4">
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">Created</p>
+            <p class="text-xs text-slate-500">{{ t('analysisDetail.created') }}</p>
             <p class="mt-1">{{ formatDate(analysis?.created_at) }}</p>
           </div>
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">Updated</p>
+            <p class="text-xs text-slate-500">{{ t('analysisDetail.updated') }}</p>
             <p class="mt-1">{{ formatDate(analysis?.updated_at) }}</p>
           </div>
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-            <p class="text-xs text-slate-500">Total size</p>
+            <p class="text-xs text-slate-500">{{ t('analysisDetail.totalSize') }}</p>
             <p class="mt-1">
               {{ totalSizeDisplay }}
             </p>
@@ -127,46 +127,46 @@
         </div>
 
         <div v-if="failedMessage" class="mt-6 rounded-xl border border-rose-500/40 bg-rose-950/40 p-6">
-          <p class="text-sm font-semibold text-rose-200">Analysis failed</p>
+          <p class="text-sm font-semibold text-rose-200">{{ t('analysisDetail.failedTitle') }}</p>
           <p class="mt-2 text-sm text-rose-300">{{ failedMessage }}</p>
         </div>
         <div v-else-if="!analysis?.result_json" class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6">
-          <p class="text-sm text-slate-400">Layer breakdown coming soon.</p>
+          <p class="text-sm text-slate-400">{{ t('analysisDetail.pendingLayers') }}</p>
         </div>
         <div v-else class="mt-6 space-y-6">
           <div class="flex items-center justify-between text-xs text-slate-400">
-            <span>Layer breakdown</span>
-            <span v-if="polling">Updating...</span>
+            <span>{{ t('analysisDetail.layerBreakdown') }}</span>
+            <span v-if="polling">{{ t('analysisDetail.updating') }}</span>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
             <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
-              <p class="text-sm font-semibold text-slate-200">Summary</p>
+              <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.summary') }}</p>
               <div class="text-sm text-slate-300 space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Image</span>
+                  <span class="text-slate-500">{{ t('analysisDetail.image') }}</span>
                   <span>{{ analysis?.image }}:{{ analysis?.tag }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Total size</span>
+                  <span class="text-slate-500">{{ t('analysisDetail.totalSize') }}</span>
                   <span>{{ totalSizeDisplay }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Layer count</span>
+                  <span class="text-slate-500">{{ t('analysisDetail.layerCount') }}</span>
                   <span>{{ layerCountDisplay }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500">Manifest type</span>
+                  <span class="text-slate-500">{{ t('analysisDetail.manifestType') }}</span>
                   <span>{{ manifestTypeLabel }}</span>
                 </div>
               </div>
             </div>
 
             <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-3">
-              <p class="text-sm font-semibold text-slate-200">Insights</p>
+              <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.insights') }}</p>
               <div class="space-y-3 text-sm text-slate-300">
                 <div>
-                  <p class="text-xs uppercase text-slate-500 tracking-wide">Warnings</p>
+                  <p class="text-xs uppercase text-slate-500 tracking-wide">{{ t('analysisDetail.warnings') }}</p>
                   <ul v-if="warnings.length" class="mt-2 space-y-2">
                     <li
                       v-for="warning in warnings"
@@ -176,10 +176,10 @@
                       {{ warning }}
                     </li>
                   </ul>
-                  <p v-else class="mt-2 text-slate-400">No warnings detected.</p>
+                  <p v-else class="mt-2 text-slate-400">{{ t('analysisDetail.noWarnings') }}</p>
                 </div>
                 <div>
-                  <p class="text-xs uppercase text-slate-500 tracking-wide">Largest layers</p>
+                  <p class="text-xs uppercase text-slate-500 tracking-wide">{{ t('analysisDetail.largestLayers') }}</p>
                   <ul v-if="largestLayers.length" class="mt-2 space-y-2">
                     <li
                       v-for="layer in largestLayers"
@@ -190,23 +190,23 @@
                       <span class="text-slate-200">{{ formatBytes(layer.size_bytes) }}</span>
                     </li>
                   </ul>
-                  <p v-else class="mt-2 text-slate-400">No layers reported.</p>
+                  <p v-else class="mt-2 text-slate-400">{{ t('analysisDetail.noLayers') }}</p>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
-            <p class="text-sm font-semibold text-slate-200">Optimization Recommendations</p>
+            <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.recommendations') }}</p>
             <div v-if="recommendations.length" class="flex flex-wrap items-center gap-3 text-xs">
               <span class="rounded-full border px-3 py-1" :class="severityStyles('critical').container">
-                Critical: {{ recommendationCounts.critical }}
+                {{ t('analysisDetail.severityCritical') }}: {{ recommendationCounts.critical }}
               </span>
               <span class="rounded-full border px-3 py-1" :class="severityStyles('warning').container">
-                Warnings: {{ recommendationCounts.warning }}
+                {{ t('analysisDetail.severityWarning') }}: {{ recommendationCounts.warning }}
               </span>
               <span class="rounded-full border px-3 py-1" :class="severityStyles('info').container">
-                Info: {{ recommendationCounts.info }}
+                {{ t('analysisDetail.severityInfo') }}: {{ recommendationCounts.info }}
               </span>
             </div>
             <div v-if="recommendations.length" class="grid gap-3 md:grid-cols-2">
@@ -227,27 +227,27 @@
                 <p class="mt-2 text-xs text-slate-400">{{ recommendation.suggested_action }}</p>
               </div>
             </div>
-            <p v-else class="text-sm text-slate-400">No optimization issues detected 🎉</p>
+            <p v-else class="text-sm text-slate-400">{{ t('analysisDetail.noRecommendations') }}</p>
           </div>
 
           <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-slate-200">Layers</p>
+              <p class="text-sm font-semibold text-slate-200">{{ t('analysisDetail.layers') }}</p>
               <button
                 class="text-xs text-indigo-400 hover:text-indigo-300"
                 type="button"
                 @click="showRaw = !showRaw"
               >
-                {{ showRaw ? 'Hide raw JSON' : 'Show raw JSON' }}
+                {{ showRaw ? t('analysisDetail.hideRaw') : t('analysisDetail.showRaw') }}
               </button>
             </div>
             <div class="max-h-80 overflow-y-auto rounded-lg border border-slate-800">
               <table class="min-w-full text-left text-sm text-slate-300">
                 <thead class="bg-slate-900/70 text-xs uppercase text-slate-500">
                   <tr>
-                    <th class="px-4 py-3">Digest</th>
-                    <th class="px-4 py-3">Size</th>
-                    <th class="px-4 py-3">Media type</th>
+                    <th class="px-4 py-3">{{ t('analysisDetail.digest') }}</th>
+                    <th class="px-4 py-3">{{ t('analysisDetail.size') }}</th>
+                    <th class="px-4 py-3">{{ t('analysisDetail.mediaType') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -256,7 +256,9 @@
                       {{ shortDigest(layer.digest) }}
                     </td>
                     <td class="px-4 py-3">{{ formatBytes(layer.size_bytes) }}</td>
-                    <td class="px-4 py-3 text-xs text-slate-400">{{ layer.media_type || '—' }}</td>
+                    <td class="px-4 py-3 text-xs text-slate-400">
+                      {{ layer.media_type || t('common.empty') }}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -277,6 +279,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   deleteAnalysis,
   getAnalysis,
@@ -290,6 +293,7 @@ const route = useRoute()
 const router = useRouter()
 const projectId = route.params.id
 const analysisId = route.params.analysisId
+const { locale, t, tm } = useI18n()
 
 const analysis = ref(null)
 const loading = ref(true)
@@ -421,20 +425,21 @@ watch(
 )
 
 const formatDate = (value) => {
-  if (!value) return 'just now'
-  return new Date(value).toLocaleString()
+  if (!value) return t('common.justNow')
+  return new Date(value).toLocaleString(locale.value)
 }
 
 const formatBytes = (value) => {
-  if (!value && value !== 0) return '—'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  if (!value && value !== 0) return t('common.empty')
+  const units = tm('units.bytes')
+  const unitList = Array.isArray(units) && units.length ? units : ['B', 'KB', 'MB', 'GB', 'TB']
   let size = Number(value)
   let unitIndex = 0
-  while (size >= 1024 && unitIndex < units.length - 1) {
+  while (size >= 1024 && unitIndex < unitList.length - 1) {
     size /= 1024
     unitIndex += 1
   }
-  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${unitList[unitIndex]}`
 }
 
 const fetchBaselineCompare = async () => {
@@ -472,7 +477,7 @@ watch(
 )
 
 const shortDigest = (value) => {
-  if (!value) return '—'
+  if (!value) return t('common.empty')
   const trimmed = value.trim()
   if (trimmed.includes(':')) {
     const [algo, hash] = trimmed.split(':')
@@ -566,7 +571,7 @@ const failedMessage = computed(() => {
   if (analysis.value?.result_json?.error) {
     return analysis.value.result_json.error
   }
-  return 'Analysis failed.'
+  return t('analysisDetail.failedFallback')
 })
 
 const totalSizeDisplay = computed(() => {
@@ -576,7 +581,7 @@ const totalSizeDisplay = computed(() => {
   if (result.value?.total_size_bytes || result.value?.total_size_bytes === 0) {
     return formatBytes(result.value.total_size_bytes)
   }
-  return '—'
+  return t('common.empty')
 })
 
 const layers = computed(() => result.value?.layers ?? [])
@@ -601,13 +606,13 @@ const layerCountDisplay = computed(() => {
   if (layers.value.length) {
     return layers.value.length
   }
-  return '—'
+  return t('common.empty')
 })
 
 const manifestTypeLabel = computed(() => {
   const mediaType = result.value?.media_type
   if (!mediaType) {
-    return '—'
+    return t('common.empty')
   }
   if (mediaType.includes('docker.distribution.manifest.v2+json')) {
     return 'Docker'
@@ -655,7 +660,7 @@ const formattedResult = computed(() => {
 })
 
 const handleRerun = async () => {
-  const confirmed = window.confirm('Re-run this analysis? It will overwrite the current result.')
+  const confirmed = window.confirm(t('analysisDetail.rerunConfirm'))
   if (!confirmed) {
     return
   }
@@ -667,7 +672,7 @@ const handleRerun = async () => {
     await fetchAnalysis()
   } catch (err) {
     if (err.status === 409) {
-      rerunError.value = 'Analysis is already running.'
+      rerunError.value = t('analysisDetail.rerunConflict')
     } else {
       rerunError.value = err.message
     }
@@ -693,7 +698,7 @@ const handleDeleteAnalysis = async () => {
   if (!analysis.value?.id) {
     return
   }
-  const confirmed = window.confirm('Delete this analysis? This cannot be undone.')
+  const confirmed = window.confirm(t('analysisDetail.deleteConfirm'))
   if (!confirmed) {
     return
   }
@@ -710,3 +715,10 @@ const handleDeleteAnalysis = async () => {
   }
 }
 </script>
+const statusLabel = (status) => {
+  if (!status) {
+    return t('common.empty')
+  }
+  const key = `status.${status}`
+  return t(key)
+}
