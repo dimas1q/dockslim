@@ -1,6 +1,7 @@
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import AccountSettingsView from './AccountSettingsView.vue'
+import i18n from '../i18n'
 
 const mockAccount = { id: 'user-1', login: 'demo', email: 'demo@example.com' }
 const apiMocks = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ vi.mock('../stores/auth', () => {
 const mountView = async () => {
   const wrapper = mount(AccountSettingsView, {
     global: {
+      plugins: [i18n],
       stubs: {
         RouterLink: RouterLinkStub,
       },
@@ -33,6 +35,7 @@ const mountView = async () => {
 }
 
 beforeEach(() => {
+  i18n.global.locale.value = 'en'
   apiMocks.fetchAccount.mockReset().mockResolvedValue(mockAccount)
   apiMocks.updateAccount.mockReset().mockResolvedValue(mockAccount)
   apiMocks.listApiTokens.mockReset().mockResolvedValue([])

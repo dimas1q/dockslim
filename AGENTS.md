@@ -173,6 +173,7 @@ When implementing features:
   * size deltas
   * critical recommendations
   * regressions
+* Ensure the UI supports **multiple languages (Russian + English)** with structured locale files, and default to Russian.
 
 DockSlim is a **product**, not a debugging tool.
 
