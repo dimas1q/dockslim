@@ -623,14 +623,28 @@
             Track image analysis requests and review their status.
           </p>
         </div>
-        <button
-          v-if="isOwner"
-          class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
-          :disabled="registries.length === 0"
-          @click="toggleAnalysisForm"
-        >
-          {{ showAnalysisForm ? 'Close' : 'New analysis' }}
-        </button>
+        <div class="flex flex-wrap items-center gap-3">
+          <RouterLink
+            class="inline-flex items-center justify-center rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
+            :to="`/projects/${project?.id}/history`"
+          >
+            History
+          </RouterLink>
+          <RouterLink
+            class="inline-flex items-center justify-center rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
+            :to="`/projects/${project?.id}/trends`"
+          >
+            Trends
+          </RouterLink>
+          <button
+            v-if="isOwner"
+            class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400"
+            :disabled="registries.length === 0"
+            @click="toggleAnalysisForm"
+          >
+            {{ showAnalysisForm ? 'Close' : 'New analysis' }}
+          </button>
+        </div>
       </div>
 
       <p v-if="!isOwner && project" class="text-xs text-slate-500">
@@ -1431,6 +1445,8 @@ const statusBadgeClass = (status) => {
       return 'bg-emerald-500/20 text-emerald-200'
     case 'running':
       return 'bg-sky-500/20 text-sky-200'
+    case 'queued':
+      return 'bg-slate-700/40 text-slate-200'
     case 'failed':
       return 'bg-rose-500/20 text-rose-200'
     default:

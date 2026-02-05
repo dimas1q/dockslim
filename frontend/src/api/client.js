@@ -160,6 +160,32 @@ export const compareAnalyses = (projectId, fromId, toId) =>
     `/api/v1/projects/${projectId}/analyses/compare?from=${encodeURIComponent(fromId)}&to=${encodeURIComponent(toId)}`,
   )
 
+export const fetchHistory = (projectId, params = {}) => {
+  const query = new URLSearchParams()
+  if (params.image) query.set('image', params.image)
+  if (params.git_ref) query.set('git_ref', params.git_ref)
+  if (params.status) query.set('status', params.status)
+  if (params.from) query.set('from', params.from)
+  if (params.to) query.set('to', params.to)
+  if (params.limit) query.set('limit', params.limit)
+  const qs = query.toString()
+  return apiRequest(`/api/v1/projects/${projectId}/history${qs ? `?${qs}` : ''}`)
+}
+
+export const fetchTrends = (projectId, params = {}) => {
+  const query = new URLSearchParams()
+  if (params.metric) query.set('metric', params.metric)
+  if (params.image) query.set('image', params.image)
+  if (params.git_ref) query.set('git_ref', params.git_ref)
+  if (params.from) query.set('from', params.from)
+  if (params.to) query.set('to', params.to)
+  const qs = query.toString()
+  return apiRequest(`/api/v1/projects/${projectId}/trends${qs ? `?${qs}` : ''}`)
+}
+
+export const getBaselineCompare = (analysisId) =>
+  apiRequest(`/api/v1/analyses/${analysisId}/baseline-compare`)
+
 export const getBudgets = (projectId) => apiRequest(`/api/v1/projects/${projectId}/budgets`)
 
 export const upsertDefaultBudget = (projectId, payload) =>

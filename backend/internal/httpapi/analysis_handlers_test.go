@@ -23,8 +23,28 @@ func (r *analysisRepoStub) ListAnalysesByProject(ctx context.Context, projectID 
 	return nil, nil
 }
 
+func (r *analysisRepoStub) ListHistory(ctx context.Context, projectID uuid.UUID, filter analyses.HistoryFilter) ([]analyses.HistoryItem, error) {
+	return nil, nil
+}
+
+func (r *analysisRepoStub) ListTrends(ctx context.Context, projectID uuid.UUID, metric analyses.TrendMetric, filter analyses.HistoryFilter) ([]analyses.TrendPoint, error) {
+	return nil, nil
+}
+
 func (r *analysisRepoStub) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
 	return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
+}
+
+func (r *analysisRepoStub) GetAnalysisByID(ctx context.Context, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
+}
+
+func (r *analysisRepoStub) GetLatestCompletedBaseline(ctx context.Context, projectID uuid.UUID, image, gitRef string, excludeID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, analyses.ErrBaselineNotFound
+}
+
+func (r *analysisRepoStub) GetProjectPolicy(ctx context.Context, projectID uuid.UUID) (analyses.ProjectPolicy, error) {
+	return analyses.ProjectPolicy{}, nil
 }
 
 func (r *analysisRepoStub) CreateAnalysis(ctx context.Context, params analyses.CreateAnalysisParams) (analyses.ImageAnalysis, error) {
@@ -53,8 +73,28 @@ func (r *analysisRepoGetStub) ListAnalysesByProject(ctx context.Context, project
 	return nil, nil
 }
 
+func (r *analysisRepoGetStub) ListHistory(ctx context.Context, projectID uuid.UUID, filter analyses.HistoryFilter) ([]analyses.HistoryItem, error) {
+	return nil, nil
+}
+
+func (r *analysisRepoGetStub) ListTrends(ctx context.Context, projectID uuid.UUID, metric analyses.TrendMetric, filter analyses.HistoryFilter) ([]analyses.TrendPoint, error) {
+	return nil, nil
+}
+
 func (r *analysisRepoGetStub) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
 	return r.analysis, nil
+}
+
+func (r *analysisRepoGetStub) GetAnalysisByID(ctx context.Context, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return r.analysis, nil
+}
+
+func (r *analysisRepoGetStub) GetLatestCompletedBaseline(ctx context.Context, projectID uuid.UUID, image, gitRef string, excludeID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, analyses.ErrBaselineNotFound
+}
+
+func (r *analysisRepoGetStub) GetProjectPolicy(ctx context.Context, projectID uuid.UUID) (analyses.ProjectPolicy, error) {
+	return analyses.ProjectPolicy{}, nil
 }
 
 func (r *analysisRepoGetStub) CreateAnalysis(ctx context.Context, params analyses.CreateAnalysisParams) (analyses.ImageAnalysis, error) {
@@ -77,12 +117,36 @@ func (r *analysisCompareRepoStub) ListAnalysesByProject(ctx context.Context, pro
 	return nil, nil
 }
 
+func (r *analysisCompareRepoStub) ListHistory(ctx context.Context, projectID uuid.UUID, filter analyses.HistoryFilter) ([]analyses.HistoryItem, error) {
+	return nil, nil
+}
+
+func (r *analysisCompareRepoStub) ListTrends(ctx context.Context, projectID uuid.UUID, metric analyses.TrendMetric, filter analyses.HistoryFilter) ([]analyses.TrendPoint, error) {
+	return nil, nil
+}
+
 func (r *analysisCompareRepoStub) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
 	analysis, ok := r.analyses[analysisID]
 	if !ok {
 		return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
 	}
 	return analysis, nil
+}
+
+func (r *analysisCompareRepoStub) GetAnalysisByID(ctx context.Context, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
+	analysis, ok := r.analyses[analysisID]
+	if !ok {
+		return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
+	}
+	return analysis, nil
+}
+
+func (r *analysisCompareRepoStub) GetLatestCompletedBaseline(ctx context.Context, projectID uuid.UUID, image, gitRef string, excludeID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, analyses.ErrBaselineNotFound
+}
+
+func (r *analysisCompareRepoStub) GetProjectPolicy(ctx context.Context, projectID uuid.UUID) (analyses.ProjectPolicy, error) {
+	return analyses.ProjectPolicy{}, nil
 }
 
 func (r *analysisCompareRepoStub) CreateAnalysis(ctx context.Context, params analyses.CreateAnalysisParams) (analyses.ImageAnalysis, error) {
@@ -442,6 +506,45 @@ func TestAnalysesHandlerCompareDiff(t *testing.T) {
 	}
 	if len(response.Layers.Removed) != 1 || response.Layers.Removed[0].Digest != "sha256:aaa" {
 		t.Fatalf("expected removed layer sha256:aaa")
+	}
+}
+
+func TestAnalysesHandlerBaselineCompareNoBaseline(t *testing.T) {
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+
+	repo := &analysisRepoGetStub{
+		analysis: analyses.ImageAnalysis{
+			ID:        analysisID,
+			ProjectID: projectID,
+			Image:     "repo/image",
+			Tag:       "latest",
+			Status:    analyses.StatusCompleted,
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
+	handler := NewAnalysesHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/analyses/"+analysisID.String()+"/baseline-compare", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "analysisId", analysisID.String())
+	recorder := httptest.NewRecorder()
+
+	handler.BaselineCompare(recorder, req)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", recorder.Code)
+	}
+
+	var response map[string]string
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response["error"] != "no baseline analysis found" {
+		t.Fatalf("expected error message 'no baseline analysis found', got %q", response["error"])
 	}
 }
 

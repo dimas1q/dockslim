@@ -12,19 +12,27 @@ import (
 )
 
 var (
-	ErrProjectNotFound        = errors.New("project not found")
-	ErrNotOwner               = errors.New("user is not project owner")
-	ErrInvalidImage           = errors.New("invalid image")
-	ErrInvalidRegistry        = errors.New("invalid registry")
-	ErrRegistryMismatch       = errors.New("image registry does not match selected registry")
-	ErrAnalysisRunning        = errors.New("analysis is running")
-	ErrAnalysesDifferentImage = errors.New("analyses must be for the same image")
-	ErrAnalysesNotCompleted   = errors.New("both analyses must be completed")
+	ErrProjectNotFound            = errors.New("project not found")
+	ErrNotOwner                   = errors.New("user is not project owner")
+	ErrInvalidImage               = errors.New("invalid image")
+	ErrInvalidRegistry            = errors.New("invalid registry")
+	ErrRegistryMismatch           = errors.New("image registry does not match selected registry")
+	ErrAnalysisRunning            = errors.New("analysis is running")
+	ErrAnalysesDifferentImage     = errors.New("analyses must be for the same image")
+	ErrAnalysesNotCompleted       = errors.New("both analyses must be completed")
+	ErrAnalysisNotCompleted       = errors.New("analysis must be completed")
+	ErrBaselineNotFound           = errors.New("baseline not found")
+	ErrBaselineMetricsUnavailable = errors.New("baseline metrics unavailable")
 )
 
 type RepositoryStore interface {
 	ListAnalysesByProject(ctx context.Context, projectID uuid.UUID) ([]ImageAnalysis, error)
+	ListHistory(ctx context.Context, projectID uuid.UUID, filter HistoryFilter) ([]HistoryItem, error)
+	ListTrends(ctx context.Context, projectID uuid.UUID, metric TrendMetric, filter HistoryFilter) ([]TrendPoint, error)
 	GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (ImageAnalysis, error)
+	GetAnalysisByID(ctx context.Context, analysisID uuid.UUID) (ImageAnalysis, error)
+	GetLatestCompletedBaseline(ctx context.Context, projectID uuid.UUID, image, gitRef string, excludeID uuid.UUID) (ImageAnalysis, error)
+	GetProjectPolicy(ctx context.Context, projectID uuid.UUID) (ProjectPolicy, error)
 	CreateAnalysis(ctx context.Context, params CreateAnalysisParams) (ImageAnalysis, error)
 	DeleteAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error
 	RerunAnalysis(ctx context.Context, projectID, analysisID uuid.UUID) error
@@ -76,7 +84,7 @@ func (s *Service) GetAnalysis(ctx context.Context, userID, projectID, analysisID
 	return s.repo.GetAnalysisForProject(ctx, projectID, analysisID)
 }
 
-func (s *Service) CreateAnalysis(ctx context.Context, userID, projectID uuid.UUID, registryID uuid.UUID, image, tag string) (ImageAnalysis, error) {
+func (s *Service) CreateAnalysis(ctx context.Context, userID, projectID uuid.UUID, registryID uuid.UUID, image, tag string, gitRef, commitSHA *string) (ImageAnalysis, error) {
 	role, err := s.members.GetMemberRole(ctx, projectID, userID)
 	if err != nil {
 		if errors.Is(err, projects.ErrProjectMemberNotFound) {
@@ -88,7 +96,7 @@ func (s *Service) CreateAnalysis(ctx context.Context, userID, projectID uuid.UUI
 		return ImageAnalysis{}, ErrNotOwner
 	}
 
-	return s.createAnalysis(ctx, projectID, registryID, image, tag)
+	return s.createAnalysis(ctx, projectID, registryID, image, tag, gitRef, commitSHA)
 }
 
 func (s *Service) DeleteAnalysis(ctx context.Context, userID, projectID, analysisID uuid.UUID) error {
@@ -179,8 +187,8 @@ func (s *Service) CompareAnalyses(ctx context.Context, userID, projectID, fromID
 }
 
 // CreateAnalysisForCI bypasses membership checks; project scope is enforced via registry lookup.
-func (s *Service) CreateAnalysisForCI(ctx context.Context, projectID uuid.UUID, registryID uuid.UUID, image, tag string) (ImageAnalysis, error) {
-	return s.createAnalysis(ctx, projectID, registryID, image, tag)
+func (s *Service) CreateAnalysisForCI(ctx context.Context, projectID uuid.UUID, registryID uuid.UUID, image, tag string, gitRef, commitSHA *string) (ImageAnalysis, error) {
+	return s.createAnalysis(ctx, projectID, registryID, image, tag, gitRef, commitSHA)
 }
 
 // CompareAnalysesForProject compares two analyses within the same project without membership checks.
@@ -220,7 +228,7 @@ func (s *Service) CompareAnalysesForProject(ctx context.Context, projectID, from
 	return comparison, nil
 }
 
-func (s *Service) createAnalysis(ctx context.Context, projectID uuid.UUID, registryID uuid.UUID, image, tag string) (ImageAnalysis, error) {
+func (s *Service) createAnalysis(ctx context.Context, projectID uuid.UUID, registryID uuid.UUID, image, tag string, gitRef, commitSHA *string) (ImageAnalysis, error) {
 	if registryID == uuid.Nil {
 		return ImageAnalysis{}, ErrInvalidRegistry
 	}
@@ -234,6 +242,9 @@ func (s *Service) createAnalysis(ctx context.Context, projectID uuid.UUID, regis
 	if cleanTag == "" {
 		cleanTag = "latest"
 	}
+
+	cleanGitRef := normalizeOptionalString(gitRef)
+	cleanCommitSHA := normalizeOptionalString(commitSHA)
 
 	registry, err := s.registries.GetRegistryForProject(ctx, projectID, registryID)
 	if err != nil {
@@ -253,6 +264,8 @@ func (s *Service) createAnalysis(ctx context.Context, projectID uuid.UUID, regis
 		RegistryID: &registryID,
 		Image:      normalizedImage,
 		Tag:        cleanTag,
+		GitRef:     cleanGitRef,
+		CommitSHA:  cleanCommitSHA,
 		Status:     StatusQueued,
 	})
 }

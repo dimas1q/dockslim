@@ -56,6 +56,8 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Get("/{id}", deps.ProjectsHandler.Get)
 				r.Patch("/{id}", deps.ProjectsHandler.Update)
 				r.Delete("/{id}", deps.ProjectsHandler.Delete)
+				r.Get("/{projectId}/history", deps.AnalysesHandler.History)
+				r.Get("/{projectId}/trends", deps.AnalysesHandler.Trends)
 				r.Route("/{projectId}/budgets", func(r chi.Router) {
 					r.Get("/", deps.BudgetsHandler.List)
 					r.Put("/default", deps.BudgetsHandler.UpsertDefault)
@@ -84,6 +86,9 @@ func NewRouter(deps Dependencies) http.Handler {
 					r.Delete("/{analysisId}", deps.AnalysesHandler.Delete)
 					r.Post("/{analysisId}/rerun", deps.AnalysesHandler.Rerun)
 				})
+			})
+			r.Route("/analyses", func(r chi.Router) {
+				r.Get("/{analysisId}/baseline-compare", deps.AnalysesHandler.BaselineCompare)
 			})
 		})
 

@@ -48,6 +48,8 @@ type CreateAnalysisInput struct {
 	RegistryID uuid.UUID
 	Image      string
 	Tag        string
+	GitRef     *string
+	CommitSHA  *string
 }
 
 type CompareInput struct {
@@ -73,7 +75,7 @@ type Recommendation struct {
 }
 
 func (s *Service) CreateAnalysis(ctx context.Context, projectID uuid.UUID, input CreateAnalysisInput) (analyses.ImageAnalysis, error) {
-	return s.analyses.CreateAnalysisForCI(ctx, projectID, input.RegistryID, input.Image, input.Tag)
+	return s.analyses.CreateAnalysisForCI(ctx, projectID, input.RegistryID, input.Image, input.Tag, input.GitRef, input.CommitSHA)
 }
 
 func (s *Service) Compare(ctx context.Context, projectID uuid.UUID, input CompareInput) (Report, error) {

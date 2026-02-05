@@ -23,11 +23,34 @@ func (r *compareRepoStub) ListAnalysesByProject(ctx context.Context, projectID u
 	return nil, nil
 }
 
+func (r *compareRepoStub) ListHistory(ctx context.Context, projectID uuid.UUID, filter analyses.HistoryFilter) ([]analyses.HistoryItem, error) {
+	return nil, nil
+}
+
+func (r *compareRepoStub) ListTrends(ctx context.Context, projectID uuid.UUID, metric analyses.TrendMetric, filter analyses.HistoryFilter) ([]analyses.TrendPoint, error) {
+	return nil, nil
+}
+
 func (r *compareRepoStub) GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
 	if a, ok := r.analyses[analysisID]; ok {
 		return a, nil
 	}
 	return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
+}
+
+func (r *compareRepoStub) GetAnalysisByID(ctx context.Context, analysisID uuid.UUID) (analyses.ImageAnalysis, error) {
+	if a, ok := r.analyses[analysisID]; ok {
+		return a, nil
+	}
+	return analyses.ImageAnalysis{}, analyses.ErrAnalysisNotFound
+}
+
+func (r *compareRepoStub) GetLatestCompletedBaseline(ctx context.Context, projectID uuid.UUID, image, gitRef string, excludeID uuid.UUID) (analyses.ImageAnalysis, error) {
+	return analyses.ImageAnalysis{}, analyses.ErrBaselineNotFound
+}
+
+func (r *compareRepoStub) GetProjectPolicy(ctx context.Context, projectID uuid.UUID) (analyses.ProjectPolicy, error) {
+	return analyses.ProjectPolicy{}, nil
 }
 
 func (r *compareRepoStub) CreateAnalysis(ctx context.Context, params analyses.CreateAnalysisParams) (analyses.ImageAnalysis, error) {

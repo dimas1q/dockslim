@@ -71,6 +71,61 @@
           </div>
         </div>
 
+        <div class="mt-6 rounded-xl border border-slate-800 bg-slate-950/50 p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold text-slate-200">{{ baselineHeading }}</p>
+              <p class="text-xs text-slate-400">
+                Latest completed analysis on {{ baselineBranchLabel }}.
+              </p>
+            </div>
+            <span
+              v-if="baselineCompare"
+              class="rounded-full px-3 py-1 text-xs font-semibold"
+              :class="baselineStatusClass"
+            >
+              {{ baselineCompare.status }}
+            </span>
+          </div>
+          <p v-if="baselineLoading" class="text-xs text-slate-400">Loading baseline comparison...</p>
+          <p v-else-if="baselineError" class="text-xs text-slate-400">{{ baselineError }}</p>
+          <div v-else-if="baselineCompare" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-3 text-sm text-slate-300">
+              <div class="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+                <p class="text-xs text-slate-500">Delta size</p>
+                <p class="mt-1 font-semibold" :class="deltaClass(baselineCompare.deltas.total_size_bytes)">
+                  {{ formatDeltaBytes(baselineCompare.deltas.total_size_bytes) }}
+                </p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+                <p class="text-xs text-slate-500">Delta layers</p>
+                <p class="mt-1 font-semibold" :class="deltaClass(baselineCompare.deltas.layer_count)">
+                  {{ formatDeltaCount(baselineCompare.deltas.layer_count, 'layers') }}
+                </p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+                <p class="text-xs text-slate-500">Delta largest layer</p>
+                <p class="mt-1 font-semibold" :class="deltaClass(baselineCompare.deltas.largest_layer_bytes)">
+                  {{ formatDeltaBytes(baselineCompare.deltas.largest_layer_bytes) }}
+                </p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+              <span>{{ baselineLabel }}</span>
+              <RouterLink
+                v-if="baselineLink"
+                class="text-indigo-400 hover:text-indigo-300"
+                :to="baselineLink"
+              >
+                View baseline
+              </RouterLink>
+            </div>
+          </div>
+          <p v-else class="text-xs text-slate-400">
+            Baseline data will appear after the first main analysis completes.
+          </p>
+        </div>
+
         <div v-if="failedMessage" class="mt-6 rounded-xl border border-rose-500/40 bg-rose-950/40 p-6">
           <p class="text-sm font-semibold text-rose-200">Analysis failed</p>
           <p class="mt-2 text-sm text-rose-300">{{ failedMessage }}</p>
@@ -222,7 +277,14 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { deleteAnalysis, getAnalysis, getProject, listAnalyses, rerunAnalysis } from '../api/client'
+import {
+  deleteAnalysis,
+  getAnalysis,
+  getBaselineCompare,
+  getProject,
+  listAnalyses,
+  rerunAnalysis,
+} from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -241,6 +303,9 @@ const deleteError = ref('')
 const showRaw = ref(false)
 const analyses = ref([])
 const compareError = ref('')
+const baselineCompare = ref(null)
+const baselineLoading = ref(false)
+const baselineError = ref('')
 let pollTimer = null
 
 const fetchAnalyses = async () => {
@@ -261,6 +326,9 @@ const fetchAnalysis = async ({ silent = false } = {}) => {
     analysis.value = await getAnalysis(projectId, analysisId)
     if (!silent) {
       await fetchAnalyses()
+    }
+    if (!silent) {
+      await fetchBaselineCompare()
     }
   } catch (err) {
     error.value = err.message
@@ -369,6 +437,40 @@ const formatBytes = (value) => {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
+const fetchBaselineCompare = async () => {
+  baselineError.value = ''
+  baselineCompare.value = null
+  if (!analysis.value || analysis.value.status !== 'completed') {
+    return
+  }
+  baselineLoading.value = true
+  try {
+    baselineCompare.value = await getBaselineCompare(analysisId)
+  } catch (err) {
+    if (err.status === 404) {
+      baselineError.value = 'No baseline on main yet.'
+    } else {
+      baselineError.value = err.message
+    }
+  } finally {
+    baselineLoading.value = false
+  }
+}
+
+watch(
+  () => analysis.value?.status,
+  (status, previous) => {
+    if (status === 'completed' && (previous !== 'completed' || !baselineCompare.value)) {
+      fetchBaselineCompare()
+      return
+    }
+    if (status !== 'completed') {
+      baselineCompare.value = null
+      baselineError.value = ''
+    }
+  },
+)
+
 const shortDigest = (value) => {
   if (!value) return '—'
   const trimmed = value.trim()
@@ -381,12 +483,73 @@ const shortDigest = (value) => {
   return trimmed.slice(0, 12)
 }
 
+const baselineStatusClass = computed(() => {
+  switch (baselineCompare.value?.status) {
+    case 'OK':
+      return 'bg-emerald-500/20 text-emerald-200'
+    case 'WARN':
+      return 'bg-amber-500/20 text-amber-200'
+    case 'FAIL':
+      return 'bg-rose-500/20 text-rose-200'
+    default:
+      return 'bg-slate-700/40 text-slate-200'
+  }
+})
+
+const formatDeltaBytes = (value) => {
+  if (value === null || value === undefined) return '—'
+  const sign = value > 0 ? '+' : value < 0 ? '-' : ''
+  return `${sign}${formatBytes(Math.abs(value))}`
+}
+
+const formatDeltaCount = (value, label) => {
+  if (value === null || value === undefined) return '—'
+  const sign = value > 0 ? '+' : value < 0 ? '-' : ''
+  return `${sign}${Math.abs(value)} ${label}`
+}
+
+const deltaClass = (value) => {
+  if (value > 0) return 'text-rose-200'
+  if (value < 0) return 'text-emerald-200'
+  return 'text-slate-200'
+}
+
+const baselineLabel = computed(() => {
+  if (!baselineCompare.value) return ''
+  const baseline = baselineCompare.value.baseline
+  const parts = []
+  if (baseline.tag) {
+    parts.push(`Tag ${baseline.tag}`)
+  }
+  if (baseline.commit_sha) {
+    parts.push(`Commit ${baseline.commit_sha.slice(0, 8)}`)
+  }
+  if (baseline.analyzed_at) {
+    parts.push(new Date(baseline.analyzed_at).toLocaleString())
+  }
+  return parts.length ? `Baseline: ${parts.join(' · ')}` : 'Baseline: main'
+})
+
+const baselineLink = computed(() => {
+  if (!baselineCompare.value) return ''
+  return `/projects/${projectId}/analyses/${baselineCompare.value.baseline.analysis_id}`
+})
+
+const baselineBranchLabel = computed(() => {
+  if (!baselineCompare.value) return 'main'
+  return baselineCompare.value.baseline.ref_branch || 'main'
+})
+
+const baselineHeading = computed(() => `Compared to ${baselineBranchLabel.value}`)
+
 const statusBadgeClass = computed(() => {
   switch (analysis.value?.status) {
     case 'completed':
       return 'bg-emerald-500/20 text-emerald-200'
     case 'running':
       return 'bg-sky-500/20 text-sky-200'
+    case 'queued':
+      return 'bg-slate-700/40 text-slate-200'
     case 'failed':
       return 'bg-rose-500/20 text-rose-200'
     default:

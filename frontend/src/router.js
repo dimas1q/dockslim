@@ -3,6 +3,8 @@ import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
 import ProjectsView from './views/ProjectsView.vue'
 import ProjectDetailView from './views/ProjectDetailView.vue'
+import ProjectHistoryView from './views/ProjectHistoryView.vue'
+import ProjectTrendsView from './views/ProjectTrendsView.vue'
 import AnalysisDetailView from './views/AnalysisDetailView.vue'
 import AnalysisCompareView from './views/AnalysisCompareView.vue'
 import AccountSettingsView from './views/AccountSettingsView.vue'
@@ -20,6 +22,16 @@ const routes = [
   {
     path: '/projects/:id',
     component: ProjectDetailView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/projects/:id/history',
+    component: ProjectHistoryView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/projects/:id/trends',
+    component: ProjectTrendsView,
     meta: { requiresAuth: true },
   },
   {

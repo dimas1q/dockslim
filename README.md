@@ -192,6 +192,41 @@ curl -H "Authorization: Bearer ${API_TOKEN}" \
 
 In the frontend, open a completed analysis or the project analyses list and use the Compare action to see the size and layer diff between two completed analyses of the same image.
 
+History, trends, and baselines:
+
+- **History page** (`/projects/:id/history`): browse analyses across all statuses (queued, running, failed, completed) with image/branch/date filters.
+- **Trends page** (`/projects/:id/trends`): visualize size and layer growth over time for a selected metric.
+- **Baseline compare** (`/projects/:id/analyses/:analysisId`): compare an analysis against the latest completed analysis on the baseline branch (default: `main`). The current analysis is never used as its own baseline.
+
+History API:
+
+```bash
+# List history (all statuses by default)
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  "http://localhost:8080/api/v1/projects/${PROJECT_ID}/history?image=repo/app&git_ref=main&status=all&from=2026-02-01&to=2026-02-07&limit=100"
+```
+
+Trends API:
+
+```bash
+# Fetch trends for a metric (total_size_bytes | layer_count | largest_layer_bytes)
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  "http://localhost:8080/api/v1/projects/${PROJECT_ID}/trends?metric=total_size_bytes&image=repo/app&git_ref=main&from=2026-02-01&to=2026-02-07&limit=500"
+```
+
+Baseline compare API:
+
+```bash
+ANALYSIS_ID="analysis-id"
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  "http://localhost:8080/api/v1/analyses/${ANALYSIS_ID}/baseline-compare"
+```
+
+Notes:
+- `status` supports `all`, `completed`, `failed`, `running`, `queued`.
+- `from`/`to` accept `YYYY-MM-DD` (inclusive) or RFC3339 timestamps.
+- Baseline selection uses `baseline.mode` + `baseline.ref_branch` (currently `main_latest` on `main`) and excludes the current analysis. If no baseline exists, the API returns `404` with `no baseline analysis found`.
+
 ### CI tokens & automation
 
 Project owners can issue project-scoped CI tokens to let pipelines run analyses, generate compare reports, and post PR/MR comments without a user session.

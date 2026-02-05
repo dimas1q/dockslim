@@ -206,7 +206,15 @@ func (w *Worker) processJob(ctx context.Context, job Job) error {
 		return err
 	}
 
-	if err := w.completeJob(ctx, job.ID, job.AnalysisID, resultJSON, &totalSize); err != nil {
+	layerCount := len(manifestSummary.Layers)
+	var largestLayerBytes int64
+	for _, layer := range manifestSummary.Layers {
+		if layer.Size > largestLayerBytes {
+			largestLayerBytes = layer.Size
+		}
+	}
+
+	if err := w.completeJob(ctx, job.ID, job.AnalysisID, resultJSON, &totalSize, layerCount, largestLayerBytes); err != nil {
 		return err
 	}
 
@@ -266,7 +274,7 @@ func (w *Worker) decryptPassword(ctx context.Context, encrypted []byte) (string,
 	return registry.DecryptSecret(keyMaterial, encrypted)
 }
 
-func (w *Worker) completeJob(ctx context.Context, jobID, analysisID uuid.UUID, resultJSON []byte, totalSize *int64) error {
+func (w *Worker) completeJob(ctx context.Context, jobID, analysisID uuid.UUID, resultJSON []byte, totalSize *int64, layerCount int, largestLayerBytes int64) error {
 	tx, err := w.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -282,16 +290,22 @@ func (w *Worker) completeJob(ctx context.Context, jobID, analysisID uuid.UUID, r
 		size = sql.NullInt64{Int64: *totalSize, Valid: true}
 	}
 
+	layerCountValue := sql.NullInt64{Int64: int64(layerCount), Valid: true}
+	largestLayerValue := sql.NullInt64{Int64: largestLayerBytes, Valid: true}
+
 	const updateAnalysisQuery = `
 		UPDATE image_analyses
 		SET status = $1,
 			total_size_bytes = $2,
-			result_json = $3,
+			layer_count = $3,
+			largest_layer_bytes = $4,
+			result_json = $5,
 			finished_at = NOW(),
+			analyzed_at = NOW(),
 			updated_at = NOW()
-		WHERE id = $4
+		WHERE id = $6
 	`
-	if _, err = tx.ExecContext(ctx, updateAnalysisQuery, analysisStatusCompleted, size, resultJSON, analysisID); err != nil {
+	if _, err = tx.ExecContext(ctx, updateAnalysisQuery, analysisStatusCompleted, size, layerCountValue, largestLayerValue, resultJSON, analysisID); err != nil {
 		return err
 	}
 
@@ -389,6 +403,7 @@ func (w *Worker) failJob(ctx context.Context, jobID, analysisID uuid.UUID, failu
 		SET status = $1,
 			result_json = $2,
 			finished_at = NOW(),
+			analyzed_at = NOW(),
 			updated_at = NOW()
 		WHERE id = $3
 	`

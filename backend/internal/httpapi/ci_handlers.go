@@ -16,9 +16,9 @@ import (
 )
 
 type CIHandler struct {
-	ciService       CIService
-	analyses        AnalysisService
-	registries      RegistryResolver
+	ciService  CIService
+	analyses   AnalysisService
+	registries RegistryResolver
 }
 
 type CIService interface {
@@ -28,7 +28,7 @@ type CIService interface {
 }
 
 type AnalysisService interface {
-	CreateAnalysis(ctx context.Context, userID, projectID uuid.UUID, registryID uuid.UUID, image, tag string) (analyses.ImageAnalysis, error)
+	CreateAnalysis(ctx context.Context, userID, projectID uuid.UUID, registryID uuid.UUID, image, tag string, gitRef, commitSHA *string) (analyses.ImageAnalysis, error)
 	GetAnalysis(ctx context.Context, userID, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error)
 	GetAnalysisForProject(ctx context.Context, projectID, analysisID uuid.UUID) (analyses.ImageAnalysis, error)
 	CompareAnalyses(ctx context.Context, userID, projectID, fromID, toID uuid.UUID) (analyses.Comparison, error)
@@ -43,12 +43,14 @@ func NewCIHandler(ciService CIService, analyses AnalysisService, registries Regi
 }
 
 type ciImageReportRequest struct {
-	ProjectID  *string `json:"project_id,omitempty"`
-	RegistryID string  `json:"registry_id,omitempty"`
+	ProjectID    *string `json:"project_id,omitempty"`
+	RegistryID   string  `json:"registry_id,omitempty"`
 	RegistryName *string `json:"registry_name,omitempty"`
 	RegistryHost *string `json:"registry_host,omitempty"`
-	Image      string  `json:"image"`
-	Tag        string  `json:"tag"`
+	Image        string  `json:"image"`
+	Tag          string  `json:"tag"`
+	GitRef       *string `json:"git_ref,omitempty"`
+	CommitSHA    *string `json:"commit_sha,omitempty"`
 }
 
 func (h *CIHandler) CreateAnalysisReport(w http.ResponseWriter, r *http.Request) {
@@ -99,9 +101,11 @@ func (h *CIHandler) CreateAnalysisReport(w http.ResponseWriter, r *http.Request)
 			RegistryID: registryID,
 			Image:      req.Image,
 			Tag:        req.Tag,
+			GitRef:     req.GitRef,
+			CommitSHA:  req.CommitSHA,
 		})
 	} else {
-		analysis, err = h.analyses.CreateAnalysis(r.Context(), user.ID, *projectID, registryID, req.Image, req.Tag)
+		analysis, err = h.analyses.CreateAnalysis(r.Context(), user.ID, *projectID, registryID, req.Image, req.Tag, req.GitRef, req.CommitSHA)
 	}
 
 	if err != nil {
