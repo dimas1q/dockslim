@@ -27,7 +27,7 @@ cp analyzer/.env.example analyzer/.env
 
 Environment variables:
 
-- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`), `COOKIE_SECURE` (default: false), `COOKIE_SAMESITE` (`lax`, `strict`, or `none`, default: `lax`, requires `COOKIE_SECURE=true` when set to `none`), `COOKIE_DOMAIN` (optional), `COOKIE_PATH` (default: `/`)
+- Backend: `BACKEND_HTTP_PORT` (default: 8080), `POSTGRES_DSN`, `AUTO_MIGRATE` (default: true), `MIGRATIONS_PATH` (default: `backend/migrations`), `CORS_ALLOWED_ORIGINS` (comma-separated, default: `http://localhost:5173,http://127.0.0.1:5173`), `COOKIE_SECURE` (default: false), `COOKIE_SAMESITE` (`lax`, `strict`, or `none`, default: `lax`, requires `COOKIE_SECURE=true` when set to `none`), `COOKIE_DOMAIN` (optional), `COOKIE_PATH` (default: `/`), `INTERNAL_SUBSCRIPTION_TOKEN` (required for internal subscription update flow), `DOCKSLIM_BOOTSTRAP_ADMIN_EMAIL`, `DOCKSLIM_BOOTSTRAP_ADMIN_USERNAME`, `DOCKSLIM_BOOTSTRAP_ADMIN_PASSWORD`, `DOCKSLIM_BOOTSTRAP_ADMIN_PASSWORD_HASH`
 - Analyzer: `ANALYZER_POSTGRES_DSN`
 - Frontend: `VITE_API_BASE_URL` (optional override for API base URL), `VITE_API_PROXY_TARGET` (Vite dev proxy target, default: `http://localhost:8080`)
 
@@ -78,6 +78,41 @@ curl -s -X POST http://localhost:8080/api/v1/auth/login \
 # Fetch the current user with an API token (preferred for API use)
 API_TOKEN="ds_api_..." # create via /account/settings in the UI
 curl -H "Authorization: Bearer ${API_TOKEN}" http://localhost:8080/api/v1/account/me
+```
+
+### Admin bootstrap (first run)
+
+There are **no default admin credentials** and no migration-based admin seeding.
+
+To bootstrap the first admin on startup, set:
+
+```bash
+DOCKSLIM_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+DOCKSLIM_BOOTSTRAP_ADMIN_USERNAME=platform-admin
+DOCKSLIM_BOOTSTRAP_ADMIN_PASSWORD='change-me-strong'
+# or provide bcrypt hash instead of plaintext:
+# DOCKSLIM_BOOTSTRAP_ADMIN_PASSWORD_HASH='$2a$10$...'
+```
+
+Rules:
+- bootstrap runs only when the database has no admin users (`users.is_admin = true`);
+- if the email already exists, that user is promoted to admin;
+- if an admin already exists, bootstrap does nothing (idempotent).
+
+Grant admin later (SQL):
+
+```sql
+UPDATE users
+SET is_admin = TRUE, updated_at = NOW()
+WHERE email = 'user@example.com';
+```
+
+Check admin users:
+
+```sql
+SELECT id, email, login, is_admin
+FROM users
+ORDER BY created_at ASC;
 ```
 
 Projects API:
@@ -136,6 +171,48 @@ curl -X PATCH http://localhost:8080/api/v1/account/me \
 Notes:
 - API tokens are user-scoped (not project/CI). They bypass CSRF.
 - Tokens are rejected after revocation or expiry; use HTTPS in production.
+
+### Subscriptions & billing
+
+DockSlim now has built-in plans with server-side feature gating:
+
+- `free`
+- `pro`
+- `team`
+
+Subscription API:
+
+```bash
+# Current user subscription + resolved features/limits
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  http://localhost:8080/api/v1/account/subscription
+```
+
+Response shape:
+- `plan` (`id`, `name`, `status`, `valid_until`, `is_admin`)
+- `features` (resolved plan features)
+- `limits` (derived limits like `history_days_limit`, `ci_comments`)
+
+Internal update API (for future billing/webhook integration):
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/internal/subscriptions \
+  -H "Authorization: Bearer ${API_TOKEN}" \
+  -H "X-DockSlim-Internal-Token: ${INTERNAL_SUBSCRIPTION_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"<uuid>","plan_id":"pro","status":"active","valid_until":"2026-12-31T23:59:59Z"}'
+```
+
+Notes:
+- `PUT /api/v1/internal/subscriptions` is restricted to admin users and requires `X-DockSlim-Internal-Token`.
+- Regular frontend users cannot override plan directly.
+- Billing UI page: `/account/billing`.
+
+Feature visibility policy:
+- `free`: keeps basic warnings (`insights.warnings`) and strips recommendations from gated outputs (`GET analysis`, JSON/PDF exports, CI compare report response).
+- `free`: only non-advanced insight content is returned; advanced-prefixed/root advanced fields are removed and `insights` is reduced to sanitized warnings to avoid accidental leakage.
+- `pro` / `team`: include full recommendations and advanced insights according to plan features.
+- Export gates still apply by plan (`export_json`, `export_pdf`, etc.); when an export is allowed but `advanced_insights` is disabled, payload is sanitized using the same rules.
 
 Registries API (project owners)
 
@@ -236,6 +313,22 @@ Notes:
 - `status` supports `all`, `completed`, `failed`, `running`, `queued`.
 - `from`/`to` accept `YYYY-MM-DD` (inclusive) or RFC3339 timestamps.
 - Baseline selection uses `baseline.mode` + `baseline.ref_branch` (currently `main_latest` on `main`) and excludes the current analysis. If no baseline exists, the API returns `404` with `no baseline analysis found`.
+- Feature gating is enforced server-side:
+  - `baseline-compare` requires `baseline_sla`.
+  - `largest_layer_bytes` trends require `advanced_trends`.
+  - free plan history is capped by `history_days_limit` (30 days by default).
+
+Export endpoints:
+
+```bash
+# JSON export (requires export_json)
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  http://localhost:8080/api/v1/projects/${PROJECT_ID}/analyses/${ANALYSIS_ID}/export/json
+
+# PDF export (requires export_pdf)
+curl -H "Authorization: Bearer ${API_TOKEN}" \
+  http://localhost:8080/api/v1/projects/${PROJECT_ID}/analyses/${ANALYSIS_ID}/export/pdf
+```
 
 ### CI tokens & automation
 

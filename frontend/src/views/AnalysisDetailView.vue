@@ -305,6 +305,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import BaseConfirmModal from '../components/BaseConfirmModal.vue'
+import { localizeErrorMessage } from '../utils/errorMessages'
 import {
   deleteAnalysis,
   getAnalysis,
@@ -601,7 +602,9 @@ const failedMessage = computed(() => {
     return ''
   }
   if (analysis.value?.result_json?.error) {
-    return analysis.value.result_json.error
+    return localizeErrorMessage(analysis.value.result_json.error, {
+      locale: locale.value,
+    })
   }
   return t('analysisDetail.failedFallback')
 })

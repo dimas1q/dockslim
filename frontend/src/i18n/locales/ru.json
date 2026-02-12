@@ -107,7 +107,45 @@
     "loadingProjects": "Загрузка проектов...",
     "empty": "Проектов пока нет. Создайте первый проект выше.",
     "createdAt": "Создан {date}",
-    "viewDetails": "Открыть"
+    "viewDetails": "Открыть",
+    "dashboard": {
+      "title": "Личный дашборд",
+      "subtitle": "Сводка по анализам и активности за последние недели.",
+      "loadError": "Не удалось загрузить дашборд",
+      "heatmapTitle": "Активность за 35 дней",
+      "heatmapSubtitle": "Всего событий: {count}",
+      "heatmapCellTitle": "{date}: {count}",
+      "less": "Меньше",
+      "more": "Больше",
+      "noActivity": "Активности пока нет.",
+      "recentTitle": "Последние события",
+      "recentSubtitle": "Лента действий по вашим проектам.",
+      "noEvents": "Событий пока нет.",
+      "kpis": {
+        "projectsTotal": "Проекты",
+        "projectsHint": "Доступных вам проектов",
+        "analysesTotal": "Анализы",
+        "analysesHint": "Всего запущено анализов",
+        "successRate": "Успешность",
+        "successHint": "Доля завершённых успешно",
+        "last30Days": "За 30 дней",
+        "last30Hint": "Новых анализов за месяц"
+      },
+      "eventTypes": {
+        "project_created": "Проект",
+        "analysis_queued": "Анализ в очереди",
+        "analysis_running": "Анализ выполняется",
+        "analysis_completed": "Анализ завершён",
+        "analysis_failed": "Анализ с ошибкой"
+      },
+      "eventDescriptions": {
+        "project_created": "Создан новый проект",
+        "analysis_queued": "Поставлен в очередь: {image}",
+        "analysis_running": "Выполняется: {image}",
+        "analysis_completed": "Успешно завершён: {image}",
+        "analysis_failed": "Завершился с ошибкой: {image}"
+      }
+    }
   },
   "account": {
     "title": "Аккаунт",
@@ -146,6 +184,47 @@
       "loadError": "Не удалось загрузить токены",
       "createError": "Не удалось создать токен",
       "revokeError": "Не удалось отозвать токен"
+    },
+    "billing": {
+      "title": "Биллинг",
+      "subtitle": "Проверьте текущий тариф и доступные возможности.",
+      "backToSettings": "← Назад к настройкам",
+      "currentPlan": "Текущий тариф",
+      "activePlan": "Активный тариф",
+      "statusLabel": "Статус",
+      "comparisonTitle": "Сравнение тарифов",
+      "comparisonSubtitle": "Выберите тариф по потребностям команды и росту проекта.",
+      "featureColumn": "Функция",
+      "planNames": {
+        "free": "Free",
+        "pro": "Pro",
+        "team": "Team"
+      },
+      "status": {
+        "active": "Активен",
+        "expired": "Истёк"
+      },
+      "features": {
+        "basic_analysis": "Базовый анализ",
+        "history_days_limit": "Хранение истории",
+        "advanced_insights": "Расширенные инсайты",
+        "export_pdf": "Экспорт PDF",
+        "export_json": "Экспорт JSON",
+        "ci_comments": "CI-комментарии",
+        "baseline_sla": "Baseline SLA",
+        "team_management": "Управление командой",
+        "shared_projects": "Общие проекты",
+        "advanced_trends": "Расширенные тренды"
+      },
+      "valueEnabled": "Доступно",
+      "valueDisabled": "Недоступно",
+      "valueUnlimited": "Без лимита",
+      "valueLimited": "Ограниченно",
+      "currentBadge": "Текущий",
+      "currentButton": "Текущий тариф",
+      "upgradeButton": "Повысить тариф",
+      "upgradeHint": "Оплата и автоматическое повышение тарифа появятся в следующих релизах.",
+      "loadError": "Не удалось загрузить подписку"
     }
   },
   "analysisDetail": {

@@ -16,7 +16,9 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/ci"
 	"github.com/dimas1q/dockslim/backend/internal/citokens"
 	"github.com/dimas1q/dockslim/backend/internal/config"
+	"github.com/dimas1q/dockslim/backend/internal/dashboard"
 	"github.com/dimas1q/dockslim/backend/internal/db"
+	"github.com/dimas1q/dockslim/backend/internal/featureflags"
 	"github.com/dimas1q/dockslim/backend/internal/httpapi"
 	"github.com/dimas1q/dockslim/backend/internal/migrate"
 	"github.com/dimas1q/dockslim/backend/internal/projects"
@@ -54,6 +56,25 @@ func main() {
 	}
 
 	authRepo := auth.NewRepository(database)
+	bootstrapped, err := auth.EnsureBootstrapAdmin(ctx, authRepo, auth.BootstrapAdminConfig{
+		Email:        cfg.BootstrapAdminEmail,
+		Username:     cfg.BootstrapAdminUsername,
+		Password:     cfg.BootstrapAdminPassword,
+		PasswordHash: cfg.BootstrapAdminPasswordHash,
+	})
+	if err != nil {
+		log.Fatalf("failed to bootstrap admin: %v", err)
+	}
+	if bootstrapped {
+		log.Printf("bootstrap admin user has been provisioned")
+	}
+	hasAdmin, err := authRepo.HasAnyAdmin(ctx)
+	if err != nil {
+		log.Fatalf("failed to verify admin existence: %v", err)
+	}
+	if !hasAdmin {
+		log.Printf("warning: no admin users configured; set DOCKSLIM_BOOTSTRAP_ADMIN_* environment variables")
+	}
 	projectRepo := projects.NewRepository(database)
 	registryRepo := registries.NewRepository(database)
 	analysisRepo := analyses.NewRepository(database)
@@ -76,6 +97,10 @@ func main() {
 	ciTokenService := citokens.NewService(ciTokenRepo, projectRepo)
 	apiTokenRepo := apitokens.NewRepository(database)
 	apiTokenService := apitokens.NewService(apiTokenRepo)
+	featureFlagsRepo := featureflags.NewRepository(database)
+	featureFlagsEngine := featureflags.NewEngine(featureFlagsRepo)
+	dashboardRepo := dashboard.NewRepository(database)
+	dashboardService := dashboard.NewService(dashboardRepo)
 	middleware := auth.NewMiddleware(tokenManager, authRepo, ciTokenService, apiTokenService)
 	cookieSameSite, err := parseSameSite(cfg.CookieSameSite)
 	if err != nil {
@@ -90,13 +115,17 @@ func main() {
 		Domain:   cfg.CookieDomain,
 		Path:     cfg.CookiePath,
 	})
-	accountHandler := httpapi.NewAccountHandler(authService, apiTokenService)
+	accountHandler := httpapi.NewAccountHandler(authService, apiTokenService, httpapi.AccountHandlerOptions{
+		SubscriptionService:       featureFlagsEngine,
+		DashboardService:          dashboardService,
+		InternalSubscriptionToken: cfg.InternalSubscriptionToken,
+	})
 	projectsHandler := httpapi.NewProjectsHandler(projectService)
 	registriesHandler := httpapi.NewRegistriesHandler(registryService)
-	analysesHandler := httpapi.NewAnalysesHandler(analysisService)
+	analysesHandler := httpapi.NewAnalysesHandler(analysisService, featureFlagsEngine)
 	budgetsHandler := httpapi.NewBudgetsHandler(budgetService)
 	ciTokensHandler := httpapi.NewCITokensHandler(ciTokenService)
-	ciHandler := httpapi.NewCIHandler(ciService, analysisService, registryService)
+	ciHandler := httpapi.NewCIHandler(ciService, analysisService, registryService, featureFlagsEngine)
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		AuthHandler:       authHandler,

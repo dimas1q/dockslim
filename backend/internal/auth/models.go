@@ -11,6 +11,7 @@ type User struct {
 	Login        string
 	Email        string
 	PasswordHash string
+	IsAdmin      bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

@@ -2,19 +2,26 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dimas1q/dockslim/backend/internal/apitokens"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
+	"github.com/dimas1q/dockslim/backend/internal/dashboard"
+	"github.com/dimas1q/dockslim/backend/internal/featureflags"
 	"github.com/google/uuid"
 )
 
 type AccountHandler struct {
-	authService  *auth.Service
-	tokenService APITokenService
+	authService               *auth.Service
+	tokenService              APITokenService
+	subscriptionService       SubscriptionService
+	dashboardService          AccountDashboardService
+	internalSubscriptionToken string
 }
 
 type APITokenService interface {
@@ -23,8 +30,32 @@ type APITokenService interface {
 	RevokeToken(ctx context.Context, userID, tokenID uuid.UUID) error
 }
 
-func NewAccountHandler(authService *auth.Service, tokenService APITokenService) *AccountHandler {
-	return &AccountHandler{authService: authService, tokenService: tokenService}
+type SubscriptionService interface {
+	GetUserFeatures(ctx context.Context, userID uuid.UUID) (featureflags.UserFeatures, error)
+	UpdateUserSubscription(ctx context.Context, input featureflags.UpdateSubscriptionInput) (featureflags.UserFeatures, error)
+}
+
+type AccountDashboardService interface {
+	GetDashboard(ctx context.Context, userID uuid.UUID) (dashboard.AccountDashboard, error)
+}
+
+type AccountHandlerOptions struct {
+	SubscriptionService       SubscriptionService
+	DashboardService          AccountDashboardService
+	InternalSubscriptionToken string
+}
+
+func NewAccountHandler(authService *auth.Service, tokenService APITokenService, options ...AccountHandlerOptions) *AccountHandler {
+	handler := &AccountHandler{
+		authService:  authService,
+		tokenService: tokenService,
+	}
+	if len(options) > 0 {
+		handler.subscriptionService = options[0].SubscriptionService
+		handler.dashboardService = options[0].DashboardService
+		handler.internalSubscriptionToken = options[0].InternalSubscriptionToken
+	}
+	return handler
 }
 
 type accountResponse struct {
@@ -216,4 +247,144 @@ func (h *AccountHandler) RevokeAPIToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type accountSubscriptionPlanResponse struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	ValidUntil *time.Time `json:"valid_until,omitempty"`
+	IsAdmin    bool       `json:"is_admin"`
+}
+
+type accountSubscriptionResponse struct {
+	Plan     accountSubscriptionPlanResponse `json:"plan"`
+	Features map[string]any                  `json:"features"`
+	Limits   map[string]any                  `json:"limits"`
+}
+
+func (h *AccountHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
+	if h.subscriptionService == nil {
+		writeError(w, http.StatusNotFound, "subscription service is not configured")
+		return
+	}
+
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	featureSet, err := h.subscriptionService.GetUserFeatures(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to fetch subscription")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toAccountSubscriptionResponse(featureSet))
+}
+
+func (h *AccountHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
+	if h.dashboardService == nil {
+		writeError(w, http.StatusNotFound, "dashboard service is not configured")
+		return
+	}
+
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	data, err := h.dashboardService.GetDashboard(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to fetch dashboard")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, data)
+}
+
+type updateSubscriptionRequest struct {
+	UserID     string  `json:"user_id"`
+	PlanID     string  `json:"plan_id"`
+	Status     string  `json:"status"`
+	ValidUntil *string `json:"valid_until,omitempty"`
+}
+
+func (h *AccountHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	if h.subscriptionService == nil {
+		writeError(w, http.StatusNotFound, "subscription service is not configured")
+		return
+	}
+
+	user, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !user.IsAdmin {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	internalToken := strings.TrimSpace(r.Header.Get("X-DockSlim-Internal-Token"))
+	if h.internalSubscriptionToken == "" || internalToken == "" || subtle.ConstantTimeCompare([]byte(internalToken), []byte(h.internalSubscriptionToken)) != 1 {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	var req updateSubscriptionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	targetUserID, err := uuid.Parse(strings.TrimSpace(req.UserID))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user_id")
+		return
+	}
+
+	var validUntil *time.Time
+	if req.ValidUntil != nil && strings.TrimSpace(*req.ValidUntil) != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ValidUntil))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid valid_until format")
+			return
+		}
+		validUntil = &parsed
+	}
+
+	result, err := h.subscriptionService.UpdateUserSubscription(r.Context(), featureflags.UpdateSubscriptionInput{
+		UserID:     targetUserID,
+		PlanID:     req.PlanID,
+		Status:     req.Status,
+		ValidUntil: validUntil,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, featureflags.ErrPlanNotFound):
+			writeError(w, http.StatusBadRequest, "invalid plan_id")
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toAccountSubscriptionResponse(result))
+}
+
+func toAccountSubscriptionResponse(featureSet featureflags.UserFeatures) accountSubscriptionResponse {
+	return accountSubscriptionResponse{
+		Plan: accountSubscriptionPlanResponse{
+			ID:         featureSet.PlanID,
+			Name:       featureSet.PlanName,
+			Status:     featureSet.Status,
+			ValidUntil: featureSet.ValidUntil,
+			IsAdmin:    featureSet.IsAdmin,
+		},
+		Features: featureSet.Features,
+		Limits:   featureSet.Limits(),
+	}
 }

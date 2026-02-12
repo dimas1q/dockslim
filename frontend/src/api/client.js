@@ -1,3 +1,4 @@
+import { getPreferredLocale, localizeErrorMessage } from '../utils/errorMessages'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const buildURL = (path) => {
@@ -16,9 +17,13 @@ const readCookie = (name) => {
 }
 
 export const apiRequest = async (path, options = {}) => {
+  const locale = getPreferredLocale()
   const headers = new Headers(options.headers || {})
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json')
+  }
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', locale)
   }
   const method = (options.method || 'GET').toUpperCase()
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
@@ -28,11 +33,23 @@ export const apiRequest = async (path, options = {}) => {
     }
   }
 
-  const response = await fetch(buildURL(path), {
-    ...options,
-    headers,
-    credentials: 'include',
-  })
+  let response
+  try {
+    response = await fetch(buildURL(path), {
+      ...options,
+      headers,
+      credentials: 'include',
+    })
+  } catch (err) {
+    const error = new Error(
+      localizeErrorMessage(err?.message || 'Request failed', {
+        locale,
+      }),
+    )
+    error.status = 0
+    error.rawMessage = err?.message || ''
+    throw error
+  }
 
   if (response.status === 204) {
     return null
@@ -43,9 +60,14 @@ export const apiRequest = async (path, options = {}) => {
   const payload = isJSON ? await response.json() : await response.text()
 
   if (!response.ok) {
-    const message = payload?.error || 'Request failed'
+    const rawMessage = typeof payload === 'string' ? payload : payload?.error || 'Request failed'
+    const message = localizeErrorMessage(rawMessage, {
+      status: response.status,
+      locale,
+    })
     const error = new Error(message)
     error.status = response.status
+    error.rawMessage = rawMessage
     throw error
   }
 
@@ -73,6 +95,9 @@ export const updateAccount = (payload) =>
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
+
+export const fetchSubscription = () => apiRequest('/api/v1/account/subscription')
+export const fetchAccountDashboard = () => apiRequest('/api/v1/account/dashboard')
 
 export const listApiTokens = () => apiRequest('/api/v1/account/api-tokens')
 

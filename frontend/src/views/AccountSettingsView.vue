@@ -6,9 +6,14 @@
         <h2 class="text-2xl font-semibold text-ink">{{ t('account.heading') }}</h2>
         <p class="text-sm text-muted mt-1">{{ t('account.subtitle') }}</p>
       </div>
-      <RouterLink to="/projects" class="btn btn-secondary text-sm">
-        {{ t('nav.backToProjects') }}
-      </RouterLink>
+      <div class="flex flex-wrap items-center gap-2">
+        <RouterLink to="/projects" class="btn btn-secondary text-sm">
+          {{ t('nav.backToProjects') }}
+        </RouterLink>
+        <RouterLink to="/account/billing" class="btn btn-secondary text-sm">
+          {{ t('account.billing.title') }}
+        </RouterLink>
+      </div>
     </div>
 
     <section class="panel p-6 space-y-4">

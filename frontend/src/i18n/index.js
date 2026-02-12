@@ -9,7 +9,9 @@ const detectLocale = () => {
   if (typeof window === 'undefined') {
     return 'ru'
   }
-  const stored = window.localStorage.getItem(STORAGE_KEY)
+  const storage = window.localStorage
+  const canReadStorage = storage && typeof storage.getItem === 'function'
+  const stored = canReadStorage ? storage.getItem(STORAGE_KEY) : null
   if (stored && SUPPORTED_LOCALES.includes(stored)) {
     return stored
   }
@@ -39,7 +41,7 @@ const setLocale = (locale) => {
     return
   }
   i18n.global.locale.value = locale
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
     window.localStorage.setItem(STORAGE_KEY, locale)
   }
   setDocumentLang(locale)

@@ -8,6 +8,7 @@ import ProjectTrendsView from './views/ProjectTrendsView.vue'
 import AnalysisDetailView from './views/AnalysisDetailView.vue'
 import AnalysisCompareView from './views/AnalysisCompareView.vue'
 import AccountSettingsView from './views/AccountSettingsView.vue'
+import AccountBillingView from './views/AccountBillingView.vue'
 import { loadCurrentUser, useAuth } from './stores/auth'
 
 const routes = [
@@ -47,6 +48,11 @@ const routes = [
   {
     path: '/account/settings',
     component: AccountSettingsView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/account/billing',
+    component: AccountBillingView,
     meta: { requiresAuth: true },
   },
 ]

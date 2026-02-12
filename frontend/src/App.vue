@@ -37,7 +37,7 @@
             <RouterLink
               to="/account/settings"
               class="header-pill"
-              :class="isSettingsActive ? 'header-pill-active' : ''"
+              :class="isAccountActive ? 'header-pill-active' : ''"
             >
               {{ t('app.accountFallback') }}
             </RouterLink>
@@ -70,7 +70,7 @@ const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
-const isSettingsActive = computed(() => route.path.startsWith('/account/settings'))
+const isAccountActive = computed(() => route.path.startsWith('/account/'))
 const logoIcon = mdiDocker
 
 const handleLogout = async () => {

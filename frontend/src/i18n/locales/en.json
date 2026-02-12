@@ -107,7 +107,45 @@
     "loadingProjects": "Loading projects...",
     "empty": "No projects yet. Create your first project above.",
     "createdAt": "Created {date}",
-    "viewDetails": "View details"
+    "viewDetails": "View details",
+    "dashboard": {
+      "title": "Personal dashboard",
+      "subtitle": "A quick view of analysis metrics and recent activity.",
+      "loadError": "Failed to load dashboard",
+      "heatmapTitle": "35-day activity",
+      "heatmapSubtitle": "Total events: {count}",
+      "heatmapCellTitle": "{date}: {count}",
+      "less": "Less",
+      "more": "More",
+      "noActivity": "No activity yet.",
+      "recentTitle": "Recent activity",
+      "recentSubtitle": "Latest actions across your projects.",
+      "noEvents": "No events yet.",
+      "kpis": {
+        "projectsTotal": "Projects",
+        "projectsHint": "Projects you have access to",
+        "analysesTotal": "Analyses",
+        "analysesHint": "Total analysis runs",
+        "successRate": "Success rate",
+        "successHint": "Completed analyses ratio",
+        "last30Days": "Last 30 days",
+        "last30Hint": "New analyses this month"
+      },
+      "eventTypes": {
+        "project_created": "Project",
+        "analysis_queued": "Analysis queued",
+        "analysis_running": "Analysis running",
+        "analysis_completed": "Analysis completed",
+        "analysis_failed": "Analysis failed"
+      },
+      "eventDescriptions": {
+        "project_created": "A new project was created",
+        "analysis_queued": "Queued: {image}",
+        "analysis_running": "Running: {image}",
+        "analysis_completed": "Completed: {image}",
+        "analysis_failed": "Failed: {image}"
+      }
+    }
   },
   "account": {
     "title": "Account",
@@ -146,6 +184,47 @@
       "loadError": "Failed to load tokens",
       "createError": "Failed to create token",
       "revokeError": "Failed to revoke token"
+    },
+    "billing": {
+      "title": "Billing",
+      "subtitle": "Review your subscription plan and available features.",
+      "backToSettings": "← Back to settings",
+      "currentPlan": "Current plan",
+      "activePlan": "Active plan",
+      "statusLabel": "Status",
+      "comparisonTitle": "Plan comparison",
+      "comparisonSubtitle": "Choose a plan based on your team's growth needs.",
+      "featureColumn": "Feature",
+      "planNames": {
+        "free": "Free",
+        "pro": "Pro",
+        "team": "Team"
+      },
+      "status": {
+        "active": "Active",
+        "expired": "Expired"
+      },
+      "features": {
+        "basic_analysis": "Basic analysis",
+        "history_days_limit": "History retention",
+        "advanced_insights": "Advanced insights",
+        "export_pdf": "Export PDF",
+        "export_json": "Export JSON",
+        "ci_comments": "CI comments",
+        "baseline_sla": "Baseline SLA",
+        "team_management": "Team management",
+        "shared_projects": "Shared projects",
+        "advanced_trends": "Advanced trends"
+      },
+      "valueEnabled": "Enabled",
+      "valueDisabled": "Disabled",
+      "valueUnlimited": "Unlimited",
+      "valueLimited": "Limited",
+      "currentBadge": "Current",
+      "currentButton": "Current plan",
+      "upgradeButton": "Upgrade",
+      "upgradeHint": "Payments and automatic upgrades will be available soon.",
+      "loadError": "Failed to load subscription"
     }
   },
   "analysisDetail": {

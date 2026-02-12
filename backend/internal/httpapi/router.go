@@ -45,6 +45,8 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Route("/account", func(r chi.Router) {
 					r.Get("/me", deps.AccountHandler.Me)
 					r.Patch("/me", deps.AccountHandler.UpdateProfile)
+					r.Get("/subscription", deps.AccountHandler.GetSubscription)
+					r.Get("/dashboard", deps.AccountHandler.GetDashboard)
 					r.Get("/api-tokens", deps.AccountHandler.ListAPITokens)
 					r.Post("/api-tokens", deps.AccountHandler.CreateAPIToken)
 					r.Post("/api-tokens/{tokenId}/revoke", deps.AccountHandler.RevokeAPIToken)
@@ -83,6 +85,8 @@ func NewRouter(deps Dependencies) http.Handler {
 					r.Post("/", deps.AnalysesHandler.Create)
 					r.Get("/compare", deps.AnalysesHandler.Compare)
 					r.Get("/{analysisId}", deps.AnalysesHandler.Get)
+					r.Get("/{analysisId}/export/json", deps.AnalysesHandler.ExportJSON)
+					r.Get("/{analysisId}/export/pdf", deps.AnalysesHandler.ExportPDF)
 					r.Delete("/{analysisId}", deps.AnalysesHandler.Delete)
 					r.Post("/{analysisId}/rerun", deps.AnalysesHandler.Rerun)
 				})
@@ -98,6 +102,14 @@ func NewRouter(deps Dependencies) http.Handler {
 				r.Post("/reports/image", deps.CIHandler.CreateAnalysisReport)
 				r.Post("/reports/compare", deps.CIHandler.CompareReport)
 				r.Post("/comments", deps.CIHandler.PostComment)
+			})
+		}
+
+		if deps.AccountHandler != nil {
+			r.Route("/internal", func(r chi.Router) {
+				r.Use(deps.AuthMiddleware.Authenticate)
+				r.Use(requireAdminMiddleware)
+				r.Put("/subscriptions", deps.AccountHandler.UpdateSubscription)
 			})
 		}
 	})

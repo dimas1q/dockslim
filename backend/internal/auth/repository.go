@@ -25,7 +25,7 @@ func (r *Repository) CreateUser(ctx context.Context, login, email, passwordHash 
 	const query = `
 		INSERT INTO users (login, email, password_hash)
 		VALUES ($1, $2, $3)
-		RETURNING id, login, email, password_hash, created_at, updated_at
+		RETURNING id, login, email, password_hash, is_admin, created_at, updated_at
 	`
 
 	var user User
@@ -34,6 +34,7 @@ func (r *Repository) CreateUser(ctx context.Context, login, email, passwordHash 
 		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -55,7 +56,7 @@ func (r *Repository) CreateUser(ctx context.Context, login, email, passwordHash 
 
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	const query = `
-		SELECT id, login, email, password_hash, created_at, updated_at
+		SELECT id, login, email, password_hash, is_admin, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -66,6 +67,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (User, er
 		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -81,7 +83,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (User, er
 
 func (r *Repository) GetUserByLogin(ctx context.Context, login string) (User, error) {
 	const query = `
-		SELECT id, login, email, password_hash, created_at, updated_at
+		SELECT id, login, email, password_hash, is_admin, created_at, updated_at
 		FROM users
 		WHERE login = $1
 	`
@@ -92,6 +94,7 @@ func (r *Repository) GetUserByLogin(ctx context.Context, login string) (User, er
 		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -107,7 +110,7 @@ func (r *Repository) GetUserByLogin(ctx context.Context, login string) (User, er
 
 func (r *Repository) GetUserByID(ctx context.Context, id string) (User, error) {
 	const query = `
-		SELECT id, login, email, password_hash, created_at, updated_at
+		SELECT id, login, email, password_hash, is_admin, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -118,6 +121,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (User, error) {
 		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -136,7 +140,7 @@ func (r *Repository) UpdateUserProfile(ctx context.Context, id, login, email str
 		UPDATE users
 		SET login = $2, email = $3, updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, login, email, password_hash, created_at, updated_at
+		RETURNING id, login, email, password_hash, is_admin, created_at, updated_at
 	`
 
 	var user User
@@ -145,6 +149,7 @@ func (r *Repository) UpdateUserProfile(ctx context.Context, id, login, email str
 		&user.Login,
 		&user.Email,
 		&user.PasswordHash,
+		&user.IsAdmin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -165,6 +170,42 @@ func (r *Repository) UpdateUserProfile(ctx context.Context, id, login, email str
 	}
 
 	return user, nil
+}
+
+func (r *Repository) HasAnyAdmin(ctx context.Context) (bool, error) {
+	const query = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM users
+			WHERE is_admin = TRUE
+		)
+	`
+	var exists bool
+	if err := r.db.QueryRowContext(ctx, query).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+func (r *Repository) SetUserAdmin(ctx context.Context, id string, isAdmin bool) error {
+	const query = `
+		UPDATE users
+		SET is_admin = $2,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	result, err := r.db.ExecContext(ctx, query, id, isAdmin)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrUserNotFound
+	}
+	return nil
 }
 
 func (r *Repository) ListActiveKeys(ctx context.Context) ([]AuthKey, error) {

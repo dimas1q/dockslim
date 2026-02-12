@@ -9,9 +9,6 @@
       <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <h2 class="text-xl font-semibold">{{ t('projects.listTitle') }}</h2>
         <div class="flex items-center gap-2">
-          <button class="btn btn-ghost text-sm" @click="fetchProjects">
-            {{ t('common.refresh') }}
-          </button>
           <button class="btn btn-secondary text-sm" @click="openCreateModal">
             {{ t('projects.createButton') }}
           </button>
@@ -50,6 +47,114 @@
       </ul>
     </section>
 
+    <section class="panel p-6 space-y-6 ds-reveal">
+      <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-ink">{{ t('projects.dashboard.title') }}</h2>
+          <p class="text-sm text-muted mt-1">{{ t('projects.dashboard.subtitle') }}</p>
+        </div>
+      </div>
+
+      <div v-if="dashboardLoading" class="space-y-4">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div v-for="item in 4" :key="`dash-skeleton-${item}`" class="h-24 rounded-xl skeleton"></div>
+        </div>
+        <div class="grid gap-4 xl:grid-cols-2">
+          <div class="h-48 rounded-xl skeleton"></div>
+          <div class="h-48 rounded-xl skeleton"></div>
+        </div>
+      </div>
+
+      <div v-else class="space-y-5">
+        <div v-if="dashboardError" class="callout callout-warning">
+          {{ t('projects.dashboard.loadError') }}: {{ dashboardError }}
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <article v-for="card in summaryCards" :key="card.key" class="surface p-4 space-y-1">
+            <p class="text-xs uppercase tracking-[0.14em] text-subtle">{{ card.label }}</p>
+            <p class="text-2xl font-semibold text-ink">{{ card.value }}</p>
+            <p class="text-xs text-muted">{{ card.hint }}</p>
+          </article>
+        </div>
+
+        <div class="grid gap-4 xl:grid-cols-2">
+          <article class="surface p-5 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-ink">{{ t('projects.dashboard.heatmapTitle') }}</p>
+                <p class="text-xs text-muted mt-1">
+                  {{ t('projects.dashboard.heatmapSubtitle', { count: formatNumber(totalContributions) }) }}
+                </p>
+              </div>
+            </div>
+
+            <div v-if="activityPoints.length" class="space-y-3">
+              <div class="overflow-x-auto">
+                <div class="min-w-[420px]">
+                  <div class="grid grid-flow-col auto-cols-[minmax(12px,1fr)] grid-rows-7 gap-1">
+                    <div
+                      v-for="point in activityPoints"
+                      :key="`activity-${point.date}`"
+                      class="h-3 w-3 rounded-[4px] transition-opacity hover:opacity-80"
+                      :class="heatmapCellClass(point.level)"
+                      :title="t('projects.dashboard.heatmapCellTitle', { date: formatDay(point.date), count: point.count })"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-xs text-muted">
+                <span>{{ t('projects.dashboard.less') }}</span>
+                <div class="flex items-center gap-1">
+                  <span
+                    v-for="level in [0, 1, 2, 3, 4]"
+                    :key="`legend-${level}`"
+                    class="h-3 w-3 rounded-[4px]"
+                    :class="heatmapCellClass(level)"
+                  ></span>
+                </div>
+                <span>{{ t('projects.dashboard.more') }}</span>
+              </div>
+            </div>
+
+            <p v-else class="text-sm text-muted">{{ t('projects.dashboard.noActivity') }}</p>
+          </article>
+
+          <article class="surface p-5 space-y-3">
+            <div>
+              <p class="text-sm font-semibold text-ink">{{ t('projects.dashboard.recentTitle') }}</p>
+              <p class="text-xs text-muted mt-1">{{ t('projects.dashboard.recentSubtitle') }}</p>
+            </div>
+
+            <p v-if="recentEvents.length === 0" class="text-sm text-muted">{{ t('projects.dashboard.noEvents') }}</p>
+
+            <ul v-else class="space-y-2">
+              <li
+                v-for="event in recentEvents"
+                :key="`${event.type}-${event.occurred_at}-${event.project_id}-${event.analysis_id || 'none'}`"
+                class="rounded-lg border border-border bg-card/60 px-3 py-2"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="space-y-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="badge text-[10px]" :class="eventBadgeClass(event.type)">
+                        {{ t(`projects.dashboard.eventTypes.${event.type}`) }}
+                      </span>
+                      <RouterLink class="link text-sm" :to="eventLink(event)">
+                        {{ event.project_name }}
+                      </RouterLink>
+                    </div>
+                    <p class="text-xs text-muted">{{ eventDescription(event) }}</p>
+                  </div>
+                  <span class="text-xs text-subtle whitespace-nowrap">{{ formatDate(event.occurred_at) }}</span>
+                </div>
+              </li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <Transition name="modal-fade">
       <div
         v-if="showCreateModal"
@@ -86,10 +191,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { createProject, listProjects } from '../api/client'
+import { createProject, fetchAccountDashboard, listProjects } from '../api/client'
 import { useAuth } from '../stores/auth'
 import { mdiClose } from '@mdi/js'
 
@@ -105,6 +210,47 @@ const createError = ref('')
 const deletedNotice = ref(false)
 const showCreateModal = ref(false)
 const closeIcon = mdiClose
+
+const dashboard = ref(null)
+const dashboardLoading = ref(true)
+const dashboardError = ref('')
+
+const activityPoints = computed(() => dashboard.value?.activity?.last_35_days || [])
+const recentEvents = computed(() => dashboard.value?.activity?.recent_events || [])
+
+const totalContributions = computed(() =>
+  activityPoints.value.reduce((sum, item) => sum + (Number(item.count) || 0), 0),
+)
+
+const summaryCards = computed(() => {
+  const summary = dashboard.value?.summary || {}
+  return [
+    {
+      key: 'projects_total',
+      label: t('projects.dashboard.kpis.projectsTotal'),
+      value: formatNumber(summary.projects_total),
+      hint: t('projects.dashboard.kpis.projectsHint'),
+    },
+    {
+      key: 'analyses_total',
+      label: t('projects.dashboard.kpis.analysesTotal'),
+      value: formatNumber(summary.analyses_total),
+      hint: t('projects.dashboard.kpis.analysesHint'),
+    },
+    {
+      key: 'success_ratio',
+      label: t('projects.dashboard.kpis.successRate'),
+      value: successRate(summary),
+      hint: t('projects.dashboard.kpis.successHint'),
+    },
+    {
+      key: 'analyses_last_30_days',
+      label: t('projects.dashboard.kpis.last30Days'),
+      value: formatNumber(summary.analyses_last_30_days),
+      hint: t('projects.dashboard.kpis.last30Hint'),
+    },
+  ]
+})
 
 const openCreateModal = () => {
   createError.value = ''
@@ -129,6 +275,19 @@ const fetchProjects = async () => {
   }
 }
 
+const fetchDashboard = async () => {
+  dashboardLoading.value = true
+  dashboardError.value = ''
+  try {
+    dashboard.value = await fetchAccountDashboard()
+  } catch (err) {
+    dashboardError.value = err.message
+    dashboard.value = null
+  } finally {
+    dashboardLoading.value = false
+  }
+}
+
 const handleCreate = async () => {
   createError.value = ''
   const trimmed = newName.value.trim()
@@ -148,6 +307,7 @@ const handleCreate = async () => {
     projects.value = [project, ...projects.value]
     newName.value = ''
     showCreateModal.value = false
+    fetchDashboard()
   } catch (err) {
     if (err.status === 409) {
       createError.value = t('projects.createNameDuplicate')
@@ -164,7 +324,95 @@ const formatDate = (value) => {
   return new Date(value).toLocaleString(locale.value)
 }
 
+const formatDay = (value) => {
+  if (!value) return t('common.justNow')
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString(locale.value)
+}
+
+const formatNumber = (value) => {
+  const num = Number(value) || 0
+  return new Intl.NumberFormat(locale.value).format(num)
+}
+
+const successRate = (summary) => {
+  const total = Number(summary.analyses_total) || 0
+  if (total === 0) {
+    return '0%'
+  }
+  const completed = Number(summary.completed_total) || 0
+  const ratio = Math.round((completed / total) * 100)
+  return `${ratio}%`
+}
+
+const heatmapCellClass = (level) => {
+  switch (Number(level)) {
+    case 1:
+      return 'bg-primary/25 border border-primary/30'
+    case 2:
+      return 'bg-primary/45 border border-primary/50'
+    case 3:
+      return 'bg-primary/70 border border-primary/70'
+    case 4:
+      return 'bg-primary border border-primary'
+    default:
+      return 'bg-base border border-border'
+  }
+}
+
+const eventBadgeClass = (type) => {
+  switch (type) {
+    case 'analysis_completed':
+      return 'badge-success'
+    case 'analysis_failed':
+      return 'badge-danger'
+    case 'analysis_running':
+      return 'badge-info'
+    case 'analysis_queued':
+      return 'badge-warning'
+    default:
+      return 'badge-neutral'
+  }
+}
+
+const eventLink = (event) => {
+  if (event.analysis_id) {
+    return `/projects/${event.project_id}/analyses/${event.analysis_id}`
+  }
+  return `/projects/${event.project_id}`
+}
+
+const eventImageTag = (event) => {
+  if (event.image && event.tag) {
+    return `${event.image}:${event.tag}`
+  }
+  if (event.image) {
+    return event.image
+  }
+  return t('common.empty')
+}
+
+const eventDescription = (event) => {
+  const payload = {
+    image: eventImageTag(event),
+    status: event.analysis_status || t('common.empty'),
+  }
+
+  switch (event.type) {
+    case 'analysis_completed':
+      return t('projects.dashboard.eventDescriptions.analysis_completed', payload)
+    case 'analysis_failed':
+      return t('projects.dashboard.eventDescriptions.analysis_failed', payload)
+    case 'analysis_running':
+      return t('projects.dashboard.eventDescriptions.analysis_running', payload)
+    case 'analysis_queued':
+      return t('projects.dashboard.eventDescriptions.analysis_queued', payload)
+    default:
+      return t('projects.dashboard.eventDescriptions.project_created')
+  }
+}
+
 onMounted(fetchProjects)
+onMounted(fetchDashboard)
 onMounted(() => {
   deletedNotice.value = route.query.deleted === '1'
 })

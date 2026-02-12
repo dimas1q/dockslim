@@ -11,6 +11,7 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/analyses"
 	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/budgets"
+	"github.com/dimas1q/dockslim/backend/internal/featureflags"
 	"github.com/dimas1q/dockslim/backend/internal/projects"
 	"github.com/dimas1q/dockslim/backend/internal/registries"
 	"github.com/go-chi/chi/v5"
@@ -186,12 +187,38 @@ type budgetResolverStub struct {
 	err      error
 }
 
+type featureGateStub struct {
+	featuresByUser map[uuid.UUID]featureflags.UserFeatures
+}
+
 func (b *budgetResolverStub) ResolveBudget(ctx context.Context, userID, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error) {
 	return b.resolved, b.err
 }
 
 func (b *budgetResolverStub) ResolveBudgetForProject(ctx context.Context, projectID uuid.UUID, image string) (*budgets.ResolvedBudget, error) {
 	return b.resolved, b.err
+}
+
+func (f *featureGateStub) GetUserFeatures(ctx context.Context, userID uuid.UUID) (featureflags.UserFeatures, error) {
+	if f.featuresByUser == nil {
+		return featureflags.UserFeatures{}, nil
+	}
+	if features, ok := f.featuresByUser[userID]; ok {
+		return features, nil
+	}
+	return featureflags.UserFeatures{}, nil
+}
+
+func (f *featureGateStub) HasFeature(ctx context.Context, userID uuid.UUID, featureName string) (bool, error) {
+	features, err := f.GetUserFeatures(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	value, ok := features.FeatureValue(featureName)
+	if !ok {
+		return false, nil
+	}
+	return featureflags.FeatureEnabled(value), nil
 }
 
 func (m *analysisMembershipStub) GetMemberRole(ctx context.Context, projectID, userID uuid.UUID) (string, error) {
@@ -545,6 +572,264 @@ func TestAnalysesHandlerBaselineCompareNoBaseline(t *testing.T) {
 	}
 	if response["error"] != "no baseline analysis found" {
 		t.Fatalf("expected error message 'no baseline analysis found', got %q", response["error"])
+	}
+}
+
+func TestAnalysesHandlerGetStripsRecommendationsForNonAdvancedPlan(t *testing.T) {
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	resultJSON := json.RawMessage(`{
+		"layers":[{"digest":"sha256:aaa","size_bytes":12}],
+		"insights":{"warnings":["large layer","adv: premium-only warning"],"largest_layers":[1,2,3],"advanced_score":91},
+		"recommendations":[{"id":"r1","title":"basic recommendation"},{"id":"adv_r2","title":"advanced recommendation","tier":"pro"}]
+	}`)
+
+	repo := &analysisRepoGetStub{
+		analysis: analyses.ImageAnalysis{
+			ID:         analysisID,
+			ProjectID:  projectID,
+			Image:      "repo/image",
+			Tag:        "latest",
+			Status:     analyses.StatusCompleted,
+			ResultJSON: resultJSON,
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
+	flags := &featureGateStub{
+		featuresByUser: map[uuid.UUID]featureflags.UserFeatures{
+			user.ID: {
+				Features: map[string]any{
+					featureflags.FeatureAdvancedInsights: false,
+				},
+			},
+		},
+	}
+	handler := NewAnalysesHandler(service, flags)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/"+analysisID.String(), nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	req = withURLParamAnalysis(req, "analysisId", analysisID.String())
+	rec := httptest.NewRecorder()
+
+	handler.Get(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var response map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	result, ok := response["result_json"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected result_json object")
+	}
+
+	insights, ok := result["insights"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected insights to remain for free plan")
+	}
+	if len(insights) != 1 {
+		t.Fatalf("expected only warnings in insights, got %#v", insights)
+	}
+	warnings, ok := insights["warnings"].([]any)
+	if !ok || len(warnings) != 1 {
+		t.Fatalf("expected only basic warning to remain, got %#v", insights["warnings"])
+	}
+	if warnings[0] != "large layer" {
+		t.Fatalf("expected basic warning to remain, got %#v", warnings[0])
+	}
+	if _, hasRecommendations := result["recommendations"]; hasRecommendations {
+		t.Fatalf("expected recommendations to be hidden for non-advanced plan")
+	}
+}
+
+func TestAnalysesHandlerBaselineCompareForbiddenWhenFeatureDisabled(t *testing.T) {
+	user := auth.User{ID: uuid.New()}
+	repo := &analysisRepoGetStub{}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
+	flags := &featureGateStub{
+		featuresByUser: map[uuid.UUID]featureflags.UserFeatures{
+			user.ID: {
+				Features: map[string]any{
+					featureflags.FeatureBaselineSLA: false,
+				},
+			},
+		},
+	}
+	handler := NewAnalysesHandler(service, flags)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/analyses/"+uuid.NewString()+"/baseline-compare", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "analysisId", uuid.NewString())
+	rec := httptest.NewRecorder()
+
+	handler.BaselineCompare(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestAnalysesHandlerExportJSONForbiddenWithoutFeature(t *testing.T) {
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	repo := &analysisRepoGetStub{
+		analysis: analyses.ImageAnalysis{
+			ID:         analysisID,
+			ProjectID:  projectID,
+			Image:      "repo/image",
+			Tag:        "latest",
+			Status:     analyses.StatusCompleted,
+			ResultJSON: json.RawMessage(`{"layers":[]}`),
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
+	flags := &featureGateStub{
+		featuresByUser: map[uuid.UUID]featureflags.UserFeatures{
+			user.ID: {Features: map[string]any{featureflags.FeatureExportJSON: false}},
+		},
+	}
+	handler := NewAnalysesHandler(service, flags)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/"+analysisID.String()+"/export/json", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	req = withURLParamAnalysis(req, "analysisId", analysisID.String())
+	rec := httptest.NewRecorder()
+
+	handler.ExportJSON(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestAnalysesHandlerExportJSONSanitizesNonAdvancedPayload(t *testing.T) {
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	repo := &analysisRepoGetStub{
+		analysis: analyses.ImageAnalysis{
+			ID:        analysisID,
+			ProjectID: projectID,
+			Image:     "repo/image",
+			Tag:       "latest",
+			Status:    analyses.StatusCompleted,
+			ResultJSON: json.RawMessage(`{
+				"layers":[],
+				"insights":{"warnings":["x","adv: hidden"],"layer_count":10,"advanced_score":99},
+				"recommendations":[{"id":"r1"},{"id":"adv_r2","tier":"pro"}]
+			}`),
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
+	flags := &featureGateStub{
+		featuresByUser: map[uuid.UUID]featureflags.UserFeatures{
+			user.ID: {
+				Features: map[string]any{
+					featureflags.FeatureExportJSON:       true,
+					featureflags.FeatureAdvancedInsights: false,
+				},
+			},
+		},
+	}
+	handler := NewAnalysesHandler(service, flags)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/"+analysisID.String()+"/export/json", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	req = withURLParamAnalysis(req, "analysisId", analysisID.String())
+	rec := httptest.NewRecorder()
+
+	handler.ExportJSON(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode export payload: %v", err)
+	}
+	insights, ok := payload["insights"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected insights object in export")
+	}
+	if len(insights) != 1 {
+		t.Fatalf("expected only warnings in insights export, got %#v", insights)
+	}
+	warnings, ok := insights["warnings"].([]any)
+	if !ok || len(warnings) != 1 {
+		t.Fatalf("expected one basic warning in export, got %#v", insights["warnings"])
+	}
+	if warnings[0] != "x" {
+		t.Fatalf("expected warning x in export, got %#v", warnings[0])
+	}
+	if _, hasRecommendations := payload["recommendations"]; hasRecommendations {
+		t.Fatalf("expected recommendations key to be removed from export for non-advanced plan")
+	}
+}
+
+func TestAnalysesHandlerExportPDFReturnsDocumentForUnicodeContent(t *testing.T) {
+	projectID := uuid.New()
+	analysisID := uuid.New()
+	user := auth.User{ID: uuid.New()}
+	repo := &analysisRepoGetStub{
+		analysis: analyses.ImageAnalysis{
+			ID:         analysisID,
+			ProjectID:  projectID,
+			Image:      "repo/пример",
+			Tag:        "latest",
+			Status:     analyses.StatusCompleted,
+			ResultJSON: json.RawMessage(`{"layers":[]}`),
+		},
+	}
+	members := &analysisMembershipStub{role: projects.RoleOwner}
+	registryStore := &registryStoreStub{}
+	service := analyses.NewService(repo, members, registryStore, &budgetResolverStub{})
+	flags := &featureGateStub{
+		featuresByUser: map[uuid.UUID]featureflags.UserFeatures{
+			user.ID: {
+				Features: map[string]any{
+					featureflags.FeatureExportPDF: true,
+				},
+			},
+		},
+	}
+	handler := NewAnalysesHandler(service, flags)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID.String()+"/analyses/"+analysisID.String()+"/export/pdf", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	req = withURLParamAnalysis(req, "projectId", projectID.String())
+	req = withURLParamAnalysis(req, "analysisId", analysisID.String())
+	rec := httptest.NewRecorder()
+
+	handler.ExportPDF(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/pdf" {
+		t.Fatalf("expected Content-Type application/pdf, got %q", got)
+	}
+	if rec.Body.Len() == 0 {
+		t.Fatalf("expected non-empty PDF body")
+	}
+	if !bytes.HasPrefix(rec.Body.Bytes(), []byte("%PDF")) {
+		t.Fatalf("expected pdf signature in response body")
 	}
 }
 

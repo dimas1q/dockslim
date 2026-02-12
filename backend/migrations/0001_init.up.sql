@@ -4,6 +4,7 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -28,7 +29,3 @@ CREATE TABLE refresh_tokens (
 );
 
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
-
--- Seed default administrator account for first-time setups
-INSERT INTO users (email, password_hash)
-VALUES ('admin', '$2a$10$TDTsxgv8QiOw3jdN1nC3BOfbXfWaas/7qXgIkYyh81unZ4OHldbg.');

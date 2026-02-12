@@ -7,29 +7,39 @@ import (
 
 // Config holds configuration values for the backend API.
 type Config struct {
-	HTTPPort           string
-	PostgresDSN        string
-	AutoMigrate        bool
-	MigrationsPath     string
-	CORSAllowedOrigins []string
-	CookieSecure       bool
-	CookieSameSite     string
-	CookieDomain       string
-	CookiePath         string
+	HTTPPort                   string
+	PostgresDSN                string
+	AutoMigrate                bool
+	MigrationsPath             string
+	CORSAllowedOrigins         []string
+	CookieSecure               bool
+	CookieSameSite             string
+	CookieDomain               string
+	CookiePath                 string
+	InternalSubscriptionToken  string
+	BootstrapAdminEmail        string
+	BootstrapAdminUsername     string
+	BootstrapAdminPassword     string
+	BootstrapAdminPasswordHash string
 }
 
 // Load reads configuration from environment variables with sane defaults for development.
 func Load() Config {
 	cfg := Config{
-		HTTPPort:           getEnv("BACKEND_HTTP_PORT", "8080"),
-		PostgresDSN:        getEnv("POSTGRES_DSN", "postgres://dockslim:dockslim@localhost:5432/dockslim?sslmode=disable"),
-		AutoMigrate:        getEnvAsBool("AUTO_MIGRATE", true),
-		MigrationsPath:     getEnv("MIGRATIONS_PATH", "backend/migrations"),
-		CORSAllowedOrigins: getEnvAsList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
-		CookieSecure:       getEnvAsBool("COOKIE_SECURE", false),
-		CookieSameSite:     strings.ToLower(getEnv("COOKIE_SAMESITE", "lax")),
-		CookieDomain:       getEnv("COOKIE_DOMAIN", ""),
-		CookiePath:         getEnv("COOKIE_PATH", "/"),
+		HTTPPort:                   getEnv("BACKEND_HTTP_PORT", "8080"),
+		PostgresDSN:                getEnv("POSTGRES_DSN", "postgres://dockslim:dockslim@localhost:5432/dockslim?sslmode=disable"),
+		AutoMigrate:                getEnvAsBool("AUTO_MIGRATE", true),
+		MigrationsPath:             getEnv("MIGRATIONS_PATH", "backend/migrations"),
+		CORSAllowedOrigins:         getEnvAsList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
+		CookieSecure:               getEnvAsBool("COOKIE_SECURE", false),
+		CookieSameSite:             strings.ToLower(getEnv("COOKIE_SAMESITE", "lax")),
+		CookieDomain:               getEnv("COOKIE_DOMAIN", ""),
+		CookiePath:                 getEnv("COOKIE_PATH", "/"),
+		InternalSubscriptionToken:  getEnv("INTERNAL_SUBSCRIPTION_TOKEN", ""),
+		BootstrapAdminEmail:        getEnv("DOCKSLIM_BOOTSTRAP_ADMIN_EMAIL", ""),
+		BootstrapAdminUsername:     getEnv("DOCKSLIM_BOOTSTRAP_ADMIN_USERNAME", ""),
+		BootstrapAdminPassword:     getEnv("DOCKSLIM_BOOTSTRAP_ADMIN_PASSWORD", ""),
+		BootstrapAdminPasswordHash: getEnv("DOCKSLIM_BOOTSTRAP_ADMIN_PASSWORD_HASH", ""),
 	}
 
 	return cfg

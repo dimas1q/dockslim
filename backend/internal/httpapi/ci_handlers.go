@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -11,14 +12,16 @@ import (
 	"github.com/dimas1q/dockslim/backend/internal/auth"
 	"github.com/dimas1q/dockslim/backend/internal/ci"
 	"github.com/dimas1q/dockslim/backend/internal/citokens"
+	"github.com/dimas1q/dockslim/backend/internal/featureflags"
 	"github.com/dimas1q/dockslim/backend/internal/registries"
 	"github.com/google/uuid"
 )
 
 type CIHandler struct {
-	ciService  CIService
-	analyses   AnalysisService
-	registries RegistryResolver
+	ciService    CIService
+	analyses     AnalysisService
+	registries   RegistryResolver
+	featureFlags FeatureGate
 }
 
 type CIService interface {
@@ -38,8 +41,12 @@ type RegistryResolver interface {
 	ResolveRegistryReference(ctx context.Context, projectID uuid.UUID, registryID *uuid.UUID, name *string, host *string) (registries.Registry, error)
 }
 
-func NewCIHandler(ciService CIService, analyses AnalysisService, registries RegistryResolver) *CIHandler {
-	return &CIHandler{ciService: ciService, analyses: analyses, registries: registries}
+func NewCIHandler(ciService CIService, analyses AnalysisService, registries RegistryResolver, featureFlags ...FeatureGate) *CIHandler {
+	handler := &CIHandler{ciService: ciService, analyses: analyses, registries: registries}
+	if len(featureFlags) > 0 {
+		handler.featureFlags = featureFlags[0]
+	}
+	return handler
 }
 
 type ciImageReportRequest struct {
@@ -193,6 +200,17 @@ func (h *CIHandler) CompareReport(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		if h.featureFlags != nil && req.IncludeJSON {
+			exportEnabled, err := h.featureFlags.HasFeature(r.Context(), user.ID, featureflags.FeatureExportJSON)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to resolve feature access")
+				return
+			}
+			if !exportEnabled {
+				writeError(w, http.StatusForbidden, "feature not available on current plan")
+				return
+			}
+		}
 	}
 
 	report, err := h.ciService.Compare(r.Context(), *projectID, ci.CompareInput{
@@ -214,6 +232,26 @@ func (h *CIHandler) CompareReport(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to build compare report")
 		}
 		return
+	}
+
+	if ciToken == nil && h.featureFlags != nil {
+		advancedEnabled, err := h.featureFlags.HasFeature(r.Context(), user.ID, featureflags.FeatureAdvancedInsights)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to resolve feature access")
+			return
+		}
+		if !advancedEnabled {
+			report.Warnings = filterCIAdvancedWarnings(report.Warnings)
+			report.Recommendations = nil
+			if report.ReportJSON != nil {
+				report.ReportJSON["warnings"] = filterCIReportJSONWarnings(report.ReportJSON["warnings"])
+				delete(report.ReportJSON, "recommendations")
+			}
+			if report.ReportMarkdown != nil {
+				sanitized := stripCIRecommendationsMarkdown(*report.ReportMarkdown)
+				report.ReportMarkdown = &sanitized
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, report)
@@ -319,6 +357,22 @@ func (h *CIHandler) PostComment(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		if h.featureFlags != nil {
+			featureSet, err := h.featureFlags.GetUserFeatures(r.Context(), user.ID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to resolve feature access")
+				return
+			}
+			ciMode, ok := featureSet.FeatureValue(featureflags.FeatureCIComments)
+			if !ok || !featureflags.FeatureEnabled(ciMode) {
+				writeError(w, http.StatusForbidden, "feature not available on current plan")
+				return
+			}
+			if strings.EqualFold(strings.TrimSpace(fmt.Sprint(ciMode)), featureflags.CICommentsModeLimited) && len(body) > 2000 {
+				writeError(w, http.StatusBadRequest, "free plan comment limit is 2000 characters")
+				return
+			}
+		}
 	} else {
 		if _, err := h.analyses.GetAnalysisForProject(r.Context(), *projectID, toID); err != nil {
 			if errors.Is(err, analyses.ErrAnalysisNotFound) {
@@ -359,4 +413,63 @@ func resolveProject(r *http.Request) (*uuid.UUID, *auth.User, *citokens.Token, e
 	}
 
 	return nil, nil, nil, errors.New("unauthorized")
+}
+
+func filterCIAdvancedWarnings(warnings []string) []string {
+	if len(warnings) == 0 {
+		return warnings
+	}
+	filtered := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		normalized := strings.ToLower(strings.TrimSpace(warning))
+		if strings.HasPrefix(normalized, "adv:") || strings.HasPrefix(normalized, "[adv]") || strings.HasPrefix(normalized, "advanced:") {
+			continue
+		}
+		filtered = append(filtered, warning)
+	}
+	return filtered
+}
+
+func filterCIReportJSONWarnings(value any) any {
+	items, ok := value.([]any)
+	if !ok {
+		return value
+	}
+	filtered := make([]any, 0, len(items))
+	for _, item := range items {
+		text, ok := item.(string)
+		if !ok {
+			filtered = append(filtered, item)
+			continue
+		}
+		normalized := strings.ToLower(strings.TrimSpace(text))
+		if strings.HasPrefix(normalized, "adv:") || strings.HasPrefix(normalized, "[adv]") || strings.HasPrefix(normalized, "advanced:") {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
+
+func stripCIRecommendationsMarkdown(markdown string) string {
+	lines := strings.Split(markdown, "\n")
+	out := make([]string, 0, len(lines))
+	skip := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !skip && trimmed == "**Top Recommendations**" {
+			skip = true
+			continue
+		}
+		if skip {
+			if strings.HasPrefix(trimmed, "- ") || trimmed == "" {
+				continue
+			}
+			skip = false
+		}
+		out = append(out, line)
+	}
+
+	return strings.TrimRight(strings.Join(out, "\n"), "\n")
 }

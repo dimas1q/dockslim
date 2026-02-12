@@ -10,7 +10,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v5 v5.5.4
-	golang.org/x/crypto v0.22.0
+	github.com/jung-kurt/gofpdf v1.16.2
+	golang.org/x/crypto v0.23.0
 )
 
 require (
